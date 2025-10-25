@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "自用的点播和直播接口",
+  "main": "index.js",
+  "scripts": {
+    "deploy-ui": "dotenv -- wrangler pages deploy frontend --project-name=tvbox-ui",
+    "deploy-api": "dotenv -- wrangler deploy backend/src/index.js --name tvbox-source-aggregator",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sese972010/tvbox.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sese972010/tvbox/issues"
+  },
+  "homepage": "https://github.com/sese972010/tvbox#readme",
+  "devDependencies": {
+    "dotenv-cli": "^10.0.0",
+    "wrangler": "^4.45.0"
+  }
+}

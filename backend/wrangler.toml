@@ -1,0 +1,12 @@
+name = "tvbox-source-aggregator"
+main = "src/index.js"
+compatibility_date = "2023-10-30"
+compatibility_flags = ["nodejs_compat"]
+
+# 你可以在这里添加环境变量、KV命名空间等绑定
+# [vars]
+# GITHUB_TOKEN = "your_github_token_here"
+
+# [[kv_namespaces]]
+# binding = "RESULT_STORE"
+# id = "your_kv_namespace_id_here"

@@ -1,0 +1,8 @@
+# Dependencies
+/node_modules
+
+# Environment variables
+.env
+
+# Wrangler logs and state
+.wrangler/

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TVBox源聚合器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>TVBox源聚合器</h1>
+        <div class="controls">
+            <input type="text" id="keywords" placeholder="输入搜索关键字，如“tvbox源”，留空则使用默认">
+            <button id="startButton">开始聚合</button>
+        </div>
+        <div class="output-area">
+            <h2>实时日志</h2>
+            <pre id="log-output">等待任务开始...</pre>
+        </div>
+        <div class="result-area">
+            <h2>聚合订阅链接</h2>
+            <p id="result-link">任务完成后将在此处显示...</p>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
