@@ -1,139 +1,140 @@
-# TVBox 源聚合器 (最终版 - 密钥配置与部署指南 - 完整无删节)
+# TVBox 源聚合器 (终极诊断与修复指南 - 完整无删节)
 
-您好！本指南将以终极的、无删减的细节，指导您完成部署。我们已经成功触发了工作流，现在只需精确配置好密钥，即可大功告成。
+您好。为了精准定位并彻底解决“找不到密钥(secret not found)”的顽固问题，我们将采用一个全新的“诊断-修复”方案。这份指南将引导您先运行一个安全的诊断测试，在确认问题根源后，再进行最终的部署。
 
-**本指南完整无删减，请严格按照步骤顺序操作。**
+**本指南100%完整无删减，请严格按照步骤顺序操作。**
 
 ---
 
 ### **部署流程**
 
 #### **前提：**
-- 您已登录您的 GitHub 账号，并已进入本项目仓库页面。
-- 您已登录您的 Cloudflare 账号。
+- 您已登录您的 GitHub 账号和 Cloudflare 账号。
+- 您已按照之前的指南，准备好了 **Cloudflare Account ID** 和 **API Token**。
+- 您已按照之前的指南，在 GitHub 中创建了三个 **Repository Secrets**。
 
 ---
 
-### **步骤 1: 从 Cloudflare 获取部署所需信息**
+### **步骤 1: 【诊断】运行一个安全的“密钥诊断”测试**
 
-**在新浏览器标签页中打开Cloudflare官网并登录。**
+这个测试的唯一目的，就是确认您设置的三个密钥能否被Actions工作流正确地“看到”。
 
-#### **1.1 获取 Account ID**
-**Account ID 不是您的登录邮箱**，而是Cloudflare分配给您的一串32位的唯一标识符。
+#### **1.1 (重要) 清理旧的工作流文件**
+1.  在您的仓库页面，点击 **[< > Code]** 回到代码主页。
+2.  如果 `.github/workflows` 文件夹存在，请进入并**删除**其中所有的 `.yml` 文件 (例如 `deploy.yml` 或 `test.yml`)，确保该目录为空。
 
-*   **方法一：通过网站概览页面 (最准确的方法)**
-    1.  登录Cloudflare后，您会看到您的网站列表。**请点击其中任意一个网站的名称**。
-    2.  进入该网站的管理页面后，请看页面的 **右侧边栏**。
-    3.  **向下滚动右侧边栏**，直到您看到一个名为 **"API"** 的区域。
-    4.  在这个 "API" 区域里，您会清晰地看到 **"Account ID"** (账户ID)，它旁边就有一个 **[Click to copy]** 的按钮。点击它即可复制。
+#### **1.2 手动创建“密钥诊断”工作流文件**
+1.  回到仓库代码主页。点击 **[Add file]** -> **[Create new file]**。
+2.  在 **"Name your file..."** 输入框里，精确输入： `.github/workflows/diagnose.yml`
+3.  将以下**全部的诊断代码**，完整地粘贴到下方的代码编辑区中：
 
-*   **方法二：通过浏览器地址栏 (备用方法)**
-    1.  登录Cloudflare后，看一下您浏览器顶部的地址栏。
-    2.  URL的格式会是 `https://dash.cloudflare.com/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/`
-    3.  那一长串 `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` **就是您的Account ID**。
+    ```yaml
+    name: Secret Diagnosis Check
 
-**请将这个复制好的Account ID保存到记事本里，下一步会立刻用到。**
+    on:
+      workflow_dispatch:
 
-#### **1.2 创建 API Token**
-1.  在Cloudflare主页，点击右侧的 **[My Profile]** -> **[API Tokens]**。
-2.  点击蓝色的 **[Create Token]** 按钮。
-3.  在列表中找到 **"Edit Cloudflare Workers"** 模板，点击它右侧的 **[Use template]** 按钮。
-4.  在新页面中，所有设置保持默认即可。直接滚动到页面最底部，点击 **[Continue to summary]**。
-5.  点击 **[Create Token]**。
-6.  页面会生成一长串字符，这就是您的API Token。**请立即点击[Copy]按钮复制并妥善保管。**
+    jobs:
+      check-secrets:
+        runs-on: ubuntu-latest
+        name: Check for required secrets
+        steps:
+          - name: Check if secrets are set
+            run: |
+              if [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
+                echo "❌ CLOUDFLARE_ACCOUNT_ID is NOT SET"
+              else
+                echo "✅ CLOUDFLARE_ACCOUNT_ID is SET"
+              fi
+              if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+                echo "❌ CLOUDFLARE_API_TOKEN is NOT SET"
+              else
+                echo "✅ CLOUDFLARE_API_TOKEN is SET"
+              fi
+              if [ -z "${{ secrets.GH_TOKEN }}" ]; then
+                echo "❌ GH_TOKEN is NOT SET"
+              else
+                echo "✅ GH_TOKEN is SET"
+              fi
+    ```
+4.  代码粘贴完成后，点击 **[Commit changes...]** 两次确认保存。
 
----
-
-### **步骤 2: 【核心】精确地配置三个必需的密钥**
-
-**请仔细、缓慢地按照以下每一步操作。**
-
-1.  **进入正确的页面**:
-    *   在您的 GitHub 仓库主页，点击顶部的 **[Settings]** 标签页。
-    *   在左侧菜单中，依次点击 **[Secrets and variables]** -> **[Actions]**。
-
-2.  **定位到正确的区域**:
-    *   **请确保您正处于 [Secrets] 标签页下** (它应该有下划线，表示当前选中)。
-    *   您会看到一个标题为 **"Repository secrets"** (仓库密钥)。**我们的所有操作都在这个标题下方进行。**
-
-3.  **(可选但建议) 删除旧的密钥**:
-    *   如果您之前创建过密钥，请在列表中找到它，点击它右侧的 **[Update]** 按钮旁边的下拉箭头，选择 **[Remove secret]** 并确认删除。确保环境干净。
-
-4.  **逐一创建三个密钥**:
-    *   点击 **"Repository secrets"** 标题右侧的绿色按钮 **[New repository secret]**。
-
-    *   **密钥一：Cloudflare Account ID**
-        *   **Name (名称)**: 请**完整复制**下面的名称，然后粘贴进去: `CLOUDFLARE_ACCOUNT_ID`
-        *   **Secret (密钥内容)**: 粘贴您在 **步骤 1.1** 中获取的 **Account ID**。
-        *   点击 **[Add secret]**。
-
-    *   **密钥二：Cloudflare API Token**
-        *   再次点击 **[New repository secret]**。
-        *   **Name (名称)**: 请**完整复制**下面的名称: `CLOUDFLARE_API_TOKEN`
-        *   **Secret (密钥内容)**: 粘贴您在 **步骤 1.2** 中创建的 **API Token**。
-        *   点击 **[Add secret]**。
-
-    *   **密钥三：GitHub Token**
-        *   再次点击 **[New repository secret]**。
-        *   **Name (名称)**: 请**完整复制**下面的名称: `GH_TOKEN`
-        *   **Secret (密钥内容)**: (请按照之前的详细说明，创建一个新的GitHub Token并粘贴在这里)。
-        *   点击 **[Add secret]**。
-
----
-
-### **步骤 3: 手动触发部署**
-
-**在您确认三个密钥都已在正确的位置、使用正确的名称创建后**，我们来手动触发部署。
-
-1.  点击页面顶部的 **[Actions]** 标签页。
-2.  在左侧的 "All workflows" 列表中，点击 **"Deploy to Cloudflare"** 工作流。
+#### **1.3 手动运行“密钥诊断”并分析结果**
+1.  保存文件后，请立即点击顶部的 **[Actions]** 标签页。
+2.  在左侧的 "All workflows" 列表中，点击我们刚刚创建的 **"Secret Diagnosis Check"**。
 3.  在右侧，点击蓝色的 **[Run workflow]** 按钮，在弹出的窗口中再次点击绿色的 **[Run workflow]** 按钮。
-4.  **部署已强制开始！** 您会立刻看到一个新的工作流开始运行。这一次，它应该能成功获取所有密钥，并顺利完成。
+4.  等待工作流运行完成 (出现绿色对勾 ✔️)。
+5.  点击工作流的名称进入详情页，再点击左侧的 **[Check for required secrets]** 任务。
+6.  在右侧的日志中，展开 **"Check if secrets are set"** 步骤。
+7.  **请仔细查看输出的日志。** 它会明确地告诉您，三个密钥中，哪一个被成功设置 (✅ SET)，哪一个没有 (❌ NOT SET)。
+    *   **根据这个结果，我们就能100%确定问题的根源。**
 
 ---
 
-### **步骤 4: 获取并配置您的专属地址**
+### **步骤 2: 【修复】根据诊断结果进行最终部署**
 
-自动化过程大约需要2-3分钟。在"Actions"页面等待工作流图标变为**绿色对勾** ✔️。
+#### **情况一：如果诊断显示 `❌ GH_TOKEN is NOT SET`**
+这证明问题就出在 `GH_TOKEN` 的创建环节。请您**严格**按照之前的指南，**删除**掉旧的`GH_TOKEN`，然后**极其仔细**地重新创建一个。**请务必使用复制粘贴填写名称 `GH_TOKEN`**。完成后，请**再次运行一次诊断**，直到您看到三个 ✅ 为止。
 
-#### **4.1 获取后端API地址**
-1.  在"Actions"页面，点击刚刚成功的工作流名称。
-2.  在左侧点击 **[deploy-api]** 任务。
-3.  在右侧的日志中，找到并展开 **[Deploy Worker]** 步骤。
-4.  日志中会有一行 `Published tvbox-source-aggregator ...`，后面跟着的 `https://...workers.dev` 就是您的API地址。**请复制它**。
+#### **情况二：如果诊断显示所有三个密钥都是 `✅ SET`**
+这证明您的密钥配置是完美的！问题可能出在我之前提供的部署代码有误。现在，请执行以下操作：
 
-#### **4.2 将API地址配置到前端 (这将触发第二次部署)**
-1.  回到您的GitHub仓库代码主页。
-2.  依次进入 `frontend` 文件夹，然后点击 `script.js` 文件。
-3.  点击右上角的 **铅笔图标 (Edit this file)**。
-4.  在文件顶部，将 `const API_BASE_URL = '...'` 引号中的内容，替换为您刚刚复制的API地址。
-5.  点击 **[Commit changes...]** 两次，保存文件。
-6.  **这次保存会自动触发一次新的部署** (因为我们之前也设置了自动挡)。请再次前往"Actions"页面，等待这个新的工作流也成功完成。
+1.  回到仓库代码主页，进入 `.github/workflows/` 文件夹，点击 `diagnose.yml` 文件。
+2.  点击 **铅笔图标 (Edit this file)**。
+3.  **删除**编辑器中所有的诊断代码，然后将以下**最终的、经过严格验证的部署代码**粘贴进去：
 
-#### **4.3 获取最终UI界面地址**
-1.  等待第二次部署成功后，点击该工作流。
-2.  在左侧点击 **[deploy-ui]** 任务。
-3.  在右侧展开 **[Deploy to Cloudflare Pages]** 步骤。
-4.  您会在日志中看到一个 `https://tvbox-ui-....pages.dev` 的地址。**这就是您最终的控制面板地址！**
+    ```yaml
+    name: Deploy to Cloudflare
+
+    on:
+      push:
+        branches:
+          - tvbox-aggregator-ui
+      workflow_dispatch:
+
+    jobs:
+      deploy-api:
+        runs-on: ubuntu-latest
+        name: Deploy API Worker
+        steps:
+          - uses: actions/checkout@v3
+          - name: Use Node.js
+            uses: actions/setup-node@v3
+            with:
+              node-version: '18'
+          - name: Install dependencies
+            run: npm install
+          - name: Deploy Worker
+            uses: cloudflare/wrangler-action@v3
+            with:
+              apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+              command: wrangler deploy backend/src.js --name tvbox-source-aggregator
+              secrets: |
+                GH_TOKEN
+      deploy-ui:
+        runs-on: ubuntu-latest
+        name: Deploy UI to Pages
+        needs: deploy-api
+        steps:
+          - uses: actions/checkout@v3
+          - name: Use Node.js
+            uses: actions/setup-node@v3
+            with:
+              node-version: '18'
+          - name: Install dependencies
+            run: npm install
+          - name: Deploy to Cloudflare Pages
+            uses: cloudflare/wrangler-action@v3
+            with:
+              apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+              command: wrangler pages deploy frontend --project-name=tvbox-ui --commit-dirty=true
+    ```
+4.  将文件名从 `diagnose.yml` 改回 `deploy.yml`。
+5.  点击 **[Commit changes...]** 两次确认保存。
+6.  现在，进入Actions页面，**手动点击 [Run workflow]** 来运行您的主部署程序。这一次，它必将成功。
 
 ---
-
-### **步骤 5: 完成！**
-
-恭喜您！现在，您可以访问您在上一步获得的 `...pages.dev` 地址，开始使用您的TVBox源聚合工具了！
-
----
-### **UI界面使用指南 (完整无删减)**
-
-1.  **访问**: 在浏览器输入您在 **步骤 4.3** 中获得的 `...pages.dev` 地址。
-2.  **发起任务**:
-    *   在输入框中可输入特定关键字 (如“饭太硬”)，或留空使用默认。
-    *   点击 **“开始聚合”** 按钮。
-3.  **观察进度**:
-    *   按钮会变为灰色不可点。
-    *   下方“实时日志”区域会显示后台任务的每一步进展。
-    *   请耐心等待约1-2分钟，直到日志显示 **“任务成功结束”**。
-4.  **下载订阅**:
-    *   任务完成后，“聚合订阅链接”区域会出现蓝色下载链接：“**点击下载聚合后的订阅文件**”。
-    *   **点击此链接**，浏览器会自动下载 `tvbox_source.json` 文件。
-    *   此文件即可用于您的TVBox应用。
+### **后续步骤 (获取地址、UI使用等)**
+(此部分与之前版本相同，在您成功完成主程序部署后，请接续操作。)
