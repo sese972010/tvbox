@@ -1,0 +1,13 @@
+name: Hello World Manual Test
+
+on:
+  push:
+    branches:
+      - tvbox-aggregator-ui
+  workflow_dispatch: # <--- 这就是我们的“手动挡”开关
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello, world! The manual trigger is working!"
