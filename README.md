@@ -12,7 +12,7 @@
 - **一个 GitHub 账号** (并已登录)。
 - **一个 Cloudflare 账号** (并已登录)。
 
-----
+---
 
 ### 步骤 1: 将项目复刻 (Fork) 到您的账号
 
@@ -83,7 +83,7 @@
         -   滚动到底部，点击 **[Generate token]**。
         -   **立即复制**生成的Token (同样只会显示一次)。
         -   回到您的仓库Secrets设置页面，第三次点击 **[New repository secret]**。
-        -   **Name**: `GITHUB_TOKEN`
+        -   **Name**: `GH_TOKEN`
         -   **Secret**: 粘贴您刚刚生成的 **GitHub Token**。
         -   点击 **[Add secret]**。
 

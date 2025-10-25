@@ -28,7 +28,7 @@ jobs:
           command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
           # 将GitHub Token作为环境变量传递给Worker
           secrets: |
-            GITHUB_TOKEN
+            GH_TOKEN
 
   deploy-ui:
     runs-on: ubuntu-latest

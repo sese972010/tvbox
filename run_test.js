@@ -9,11 +9,11 @@ async function main() {
     console.log("--- 开始本地冒烟测试 ---");
 
     // 从环境变量中获取GitHub Token（如果存在）
-    const githubToken = process.env.GITHUB_TOKEN || null;
+    const githubToken = process.env.GH_TOKEN || null;
     if (githubToken) {
-        console.log("检测到GITHUB_TOKEN，将使用认证方式请求API。");
+        console.log("检测到GH_TOKEN，将使用认证方式请求API。");
     } else {
-        console.log("未检测到GITHUB_TOKEN，将以非认证方式请求API（可能会有速率限制）。");
+        console.log("未检测到GH_TOKEN，将以非认证方式请求API（可能会有速率限制）。");
     }
 
     try {

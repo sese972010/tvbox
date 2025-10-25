@@ -55,7 +55,7 @@ export default {
 
 async function handleStartTask(request, env) {
     const { keywords } = await request.json();
-    const githubToken = env.GITHUB_TOKEN || null;
+    const githubToken = env.GH_TOKEN || null;
 
     const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     tasks[taskId] = {
