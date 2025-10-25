@@ -3,7 +3,8 @@ name: Deploy to Cloudflare
 on:
   push:
     branches:
-      - main # 当代码被推送到main分支时触发
+      - main   # 监听 main 分支
+      - master # 同时监听 master 分支
 
 jobs:
   deploy-api:
