@@ -1,5 +1,5 @@
 // 使用 Node.js 的 createRequire 来加载 CommonJS 模块
-import { createRequire } from 'module';
+import { createRequire } from 'node:module'; // 【核心修正】: 添加 'node:' 前缀以兼容最新Cloudflare Workers运行时
 const require = createRequire(import.meta.url);
 
 // 导入我们之前编写的核心功能脚本
