@@ -86,4 +86,4 @@ async function searchGithub(keywords, githubToken = null) {
 }
 
 // 导出模块，以便在其他文件中使用
-module.exports = { searchGithub };
+export { searchGithub };

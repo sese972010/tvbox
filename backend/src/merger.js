@@ -71,4 +71,4 @@ function mergeSources(validSources) {
     return mergedSource;
 }
 
-module.exports = { mergeSources };
+export { mergeSources };

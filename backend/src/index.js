@@ -1,17 +1,13 @@
-// 使用 Node.js 的 createRequire 来加载 CommonJS 模块
-import { createRequire } from 'node:module'; // 【核心修正】: 添加 'node:' 前缀以兼容最新Cloudflare Workers运行时
-const require = createRequire(import.meta.url);
-
-// 导入我们之前编写的核心功能脚本
-const { searchGithub } = require('./github_search.js');
-const { validateAndFilterSources } = require('./validator.js');
-const { mergeSources } = require('./merger.js');
+// 【核心修正】: 直接使用现代ESM `import` 语法，移除所有不兼容的 'createRequire' 补丁
+import { searchGithub } from './github_search.js';
+import { validateAndFilterSources } from './validator.js';
+import { mergeSources } from './merger.js';
 
 // 简单的内存任务存储
 const tasks = {};
 
 export default {
-    async fetch(request, env) {
+    async fetch(request, env, ctx) { // 添加 ctx 参数
         const url = new URL(request.url);
         // 为所有响应添加CORS头
         const corsHeaders = {
@@ -27,7 +23,7 @@ export default {
         let response;
         try {
             if (url.pathname === '/start-task') {
-                response = await handleStartTask(request, env);
+                response = await handleStartTask(request, env, ctx); // 传递 ctx
             } else if (url.pathname === '/task-status') {
                 response = handleTaskStatus(request);
             } else if (url.pathname === '/get-result') {
@@ -44,7 +40,9 @@ export default {
         Object.entries(corsHeaders).forEach(([key, value]) => {
             finalHeaders.set(key, value);
         });
-        finalHeaders.set('Content-Type', 'application/json');
+        if (!finalHeaders.has('Content-Type')) {
+            finalHeaders.set('Content-Type', 'application/json');
+        }
 
         return new Response(response.body, {
             status: response.status,
@@ -53,7 +51,7 @@ export default {
     },
 };
 
-async function handleStartTask(request, env) {
+async function handleStartTask(request, env, ctx) { // 接收 ctx
     const { keywords } = await request.json();
     const githubToken = env.GH_TOKEN || null;
 
@@ -66,7 +64,7 @@ async function handleStartTask(request, env) {
     };
 
     // 异步执行，不阻塞响应
-    env.CTX.waitUntil(runAggregation(taskId, keywords, githubToken));
+    ctx.waitUntil(runAggregation(taskId, keywords, githubToken));
 
     return new Response(JSON.stringify({ success: true, taskId }), { status: 202 });
 }

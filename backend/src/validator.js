@@ -80,4 +80,4 @@ function isValidTvboxSource(json) {
     return typicalKeys.some(key => json && typeof json === 'object' && key in json);
 }
 
-module.exports = { validateAndFilterSources };
+export { validateAndFilterSources };
