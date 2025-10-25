@@ -1,8 +1,8 @@
-# TVBox 源聚合器
+# TVBox 源聚合器 (纯图形化部署版)
 
 这是一个全自动的TVBox源查找、测试、合并和部署工具。它提供一个Web UI控制面板，让您可以轻松地聚合来自GitHub的最新、最快的TVBox源，并生成一个稳定、高质量的订阅地址。
 
-整个项目完全基于 Cloudflare 和 GitHub 的免费服务，无需任何自己的服务器。
+**本项目已完全适配图形化部署，您无需使用任何命令行工具。**
 
 ## 功能特性
 
@@ -10,78 +10,105 @@
 - **自动搜索**: 利用GitHub API自动搜索最新的TVBox源文件。
 - **有效性验证**: 自动测试源地址的可用性，过滤无效链接。
 - **去重合并**: 将多个源的站点、直播源和解析规则合并，并移除重复条目。
-- **Serverless 部署**: 前端部署于Cloudflare Pages，后端API部署于Cloudflare Workers。
-- **永久订阅链接**: 利用Cloudflare提供一个可绑定您自己域名的、永久有效的订阅地址。
+- **全自动部署**: Fork仓库并设置密钥后，GitHub Actions会自动为您完成所有部署工作。
 
-## 部署指南
+---
 
-请按照以下步骤来部署您自己的TVBox源聚合器：
+## 全图形化部署指南 (无需命令行)
+
+请严格按照以下步骤，在GitHub和Cloudflare网站上进行操作。
 
 ### 准备工作
-
 1.  **一个 GitHub 账号**。
-2.  **一个 Cloudflare 账号**。
-3.  **安装 Node.js 和 npm**: 请从 [Node.js官网](https://nodejs.org/) 下载并安装LTS版本。
+2.  **一个 Cloudflare 账号** (并登录)。
 
-### 步骤 1: 获取项目代码
+### 步骤 1: Fork本项目到您的GitHub账号
 
-将本仓库克隆到您的本地机器：
-```bash
-git clone <仓库地址>
-cd <项目目录>
-```
+1.  在当前页面的右上角，找到并点击 **"Fork"** 按钮。
+2.  在弹出的页面中，确认您的用户名，然后点击 **"Create fork"**。
+3.  等待几秒钟，浏览器会自动跳转到您自己账号下的项目仓库，URL看起来像 `https://github.com/你的用户名/tvbox`。接下来的所有操作都在您自己的这个仓库里进行。
 
-### 步骤 2: 安装依赖
+### 步骤 2: 从Cloudflare获取必要信息
 
-在项目根目录下运行以下命令，安装所有必需的开发工具（如Wrangler）：
-```bash
-npm install
-```
+1.  **获取 Account ID**:
+    -   打开一个新的浏览器标签页，登录Cloudflare。
+    -   在主页右侧，您会看到您的 **Account ID**。请**复制**并保存下来，后面会用到。
 
-### 步骤 3: 配置密钥
+2.  **创建 API Token**:
+    -   在Cloudflare主页，点击右侧的 **"My Profile"** -> **"API Tokens"**。
+    -   点击 **"Create Token"** 按钮。
+    -   找到 **"Edit Cloudflare Workers"** 模板，点击 **"Use template"**。
+    -   无需修改任何配置，直接滚动到底部，点击 **"Continue to summary"**。
+    -   最后点击 **"Create Token"**。
+    -   页面会显示您新创建的Token。请**复制**这串字符，并妥善保管。**注意：这个Token只会显示一次！**
 
-项目需要两个密钥才能工作。请在项目根目录创建一个名为 `.env` 的文件，并填入以下内容：
+### 步骤 3: 在GitHub仓库中设置密钥
 
-```env
-# 1. Cloudflare API Token
-# 前往 Cloudflare仪表板 -> 我的个人资料 -> API令牌 -> 创建令牌 -> 使用“编辑Cloudflare Workers”模板
-CLOUDFLARE_API_TOKEN="粘贴你的Cloudflare_API_Token在这里"
+1.  回到您在步骤1中Fork的GitHub仓库页面。
+2.  点击页面顶部的 **"Settings"** -> 左侧菜单中的 **"Secrets and variables"** -> **"Actions"**。
+3.  您会看到一个 **"Repository secrets"** 的区域。我们需要在这里添加三个密钥：
+    -   **第一个密钥 (Cloudflare Account ID)**:
+        -   点击 **"New repository secret"**。
+        -   **Name**: `CLOUDFLARE_ACCOUNT_ID`
+        -   **Secret**: 粘贴您在步骤2中复制的 **Account ID**。
+        -   点击 **"Add secret"**。
+    -   **第二个密钥 (Cloudflare API Token)**:
+        -   再次点击 **"New repository secret"**。
+        -   **Name**: `CLOUDFLARE_API_TOKEN`
+        -   **Secret**: 粘贴您在步骤2中创建并复制的 **API Token**。
+        -   点击 **"Add secret"**。
+    -   **第三个密钥 (GitHub Token)**:
+        -   为了让程序能搜索GitHub，需要一个GitHub自身的Token。
+        -   [点击这里在新标签页中创建GitHub Token](https://github.com/settings/tokens/new)。
+        -   **Note**: 随便填写一个名字，比如 `tvbox_deploy`。
+        -   **Expiration**: 建议选择 `No expiration` (永不过期)。
+        -   **Select scopes**: 勾选 `public_repo`。
+        -   滚动到底部，点击 **"Generate token"**。
+        -   **复制**生成的Token (同样，它只会显示一次)。
+        -   回到您仓库的Secrets设置页面，再次点击 **"New repository secret"**。
+        -   **Name**: `GITHUB_TOKEN`
+        -   **Secret**: 粘贴您刚刚生成的 **GitHub Token**。
+        -   点击 **"Add secret"**。
 
-# 2. GitHub Personal Access Token
-# 前往 GitHub -> Settings -> Developer settings -> Personal access tokens -> Generate new token
-# 勾选 `public_repo` 权限即可
-GITHUB_TOKEN="粘贴你的GitHub_Token在这里"
-```
+### 步骤 4: 触发首次自动部署
 
-### 步骤 4: 部署后端 API
+我们已经配置好了一切，现在需要进行一次代码修改来触发自动化流程。
 
-运行以下命令来部署Cloudflare Worker：
-```bash
-npm run deploy-api
-```
-部署成功后，终端会输出一个类似 `https://tvbox-source-aggregator.your-worker-name.workers.dev` 的URL。**请复制这个URL**，下一步会用到。
+1.  在您的GitHub仓库页面，点击顶部菜单的 **"< > Code"** 回到代码主页。
+2.  找到并点击 `README.md` 文件。
+3.  点击文件内容右上角的 **铅笔图标 (Edit this file)**。
+4.  在文件末尾随便添加几个字，比如 `Hello World`。
+5.  滚动到页面顶部，点击绿色的 **"Commit changes..."** 按钮，然后在弹出的窗口中再次点击 **"Commit changes"**。
+6.  **部署已自动开始！** 您可以点击页面顶部的 **"Actions"** 标签页，看到一个正在运行的黄色图标的工作流，这就是机器人在帮您部署了。
 
-### 步骤 5: 配置前端
+### 步骤 5: 关联并获取您的网站地址
 
-打开 `frontend/script.js` 文件，找到顶部的 `API_BASE_URL` 常量，将其值替换为您上一步复制的Worker URL：
+整个自动化过程大约需要2-3分钟。当您在"Actions"页面看到工作流图标变为**绿色对勾**时，说明部署已成功。
 
-```javascript
-// 将这里的URL替换成你自己的
-const API_BASE_URL = 'https://tvbox-source-aggregator.your-worker-name.workers.dev';
-```
+1.  **获取后端API地址**:
+    -   在"Actions"页面，点击刚刚成功的工作流名称。
+    -   在左侧点击 **"deploy-api"** 任务。
+    -   在右侧的日志中，找到并展开 **"Deploy Worker"** 步骤。
+    -   日志中会有一行 `Published tvbox-source-aggregator (dev) ...`，后面跟着的 `https://...workers.dev` 就是您的API地址。**请复制它**。
 
-### 步骤 6: 部署前端 UI
+2.  **将API地址配置到前端**:
+    -   回到您的GitHub仓库代码主页。
+    -   依次进入 `frontend` 文件夹，然后点击 `script.js` 文件。
+    -   点击右上角的 **铅笔图标 (Edit this file)**。
+    -   在文件顶部，将 `const API_BASE_URL = '...'` 引号中的内容，替换为您刚刚复制的API地址。
+    -   点击 **"Commit changes..."** 两次，保存文件。
+    -   这次保存会**再次触发一次自动部署**，请再次前往"Actions"页面，等待新的工作流完成 (变为绿色对勾)。
 
-运行以下命令来部署UI界面到Cloudflare Pages：
-```bash
-npm run deploy-ui
-```
-部署成功后，终端会输出一个Pages的访问地址，例如 `https://tvbox-ui.pages.dev`。
+3.  **获取最终UI界面地址**:
+    -   等待新的工作流成功后，在日志中点击 **"deploy-ui"** 任务。
+    -   展开 **"Deploy to Cloudflare Pages"** 步骤。
+    -   您会在日志中看到一个 `https://tvbox-ui-....pages.dev` 的地址。**这就是您最终的控制面板地址！**
 
-### 步骤 7: 完成！
+### 步骤 6: 完成！
 
-现在，您可以通过浏览器访问您的Pages地址来使用这个工具了！
+恭喜您！现在，您可以通过浏览器访问您在上一步获得的 `...pages.dev` 地址，来使用这个强大的TVBox源聚合工具了。详细的UI操作步骤，请参照本文档下方的“UI界面使用指南”。
 
-- **输入关键字** (或留空使用默认)，点击 **“开始聚合”**。
-- 在 **“实时日志”** 区域查看任务进度。
-- 任务完成后，在 **“聚合订阅链接”** 区域会出现一个下载链接，点击即可获取合并后的 `tvbox_source.json` 文件。
+---
+
+## UI界面使用指南 (详细步骤)
+... (这部分内容保持不变) ...

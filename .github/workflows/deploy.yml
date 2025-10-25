@@ -1,0 +1,51 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - main # 当代码被推送到main分支时触发
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    name: Deploy API Worker
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
+          # 将GitHub Token作为环境变量传递给Worker
+          secrets: |
+            GITHUB_TOKEN
+
+  deploy-ui:
+    runs-on: ubuntu-latest
+    name: Deploy UI to Pages
+    needs: deploy-api # 等待API部署成功后再执行
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: wrangler pages deploy frontend --project-name=tvbox-ui --commit-dirty=true
