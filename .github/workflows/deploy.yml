@@ -3,8 +3,7 @@ name: Deploy to Cloudflare
 on:
   push:
     branches:
-      - main   # 监听 main 分支
-      - master # 同时监听 master 分支
+      - tvbox-aggregator-ui # 只监听这个特定的分支
 
 jobs:
   deploy-api:
@@ -26,14 +25,13 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
-          # 将GitHub Token作为环境变量传递给Worker
           secrets: |
             GH_TOKEN
 
   deploy-ui:
     runs-on: ubuntu-latest
     name: Deploy UI to Pages
-    needs: deploy-api # 等待API部署成功后再执行
+    needs: deploy-api
     steps:
       - uses: actions/checkout@v3
       - name: Use Node.js
