@@ -12,7 +12,7 @@
 - **一个 GitHub 账号** (并已登录)。
 - **一个 Cloudflare 账号** (并已登录)。
 
-----
+---
 
 ### 步骤 1: 将项目复刻 (Fork) 到您的账号
 
@@ -20,7 +20,7 @@
 2.  在弹出的新页面中，通常您不需要修改任何设置。直接点击绿色的 **[Create fork]** 按钮。
 3.  等待几秒钟，页面会自动跳转到您自己的仓库。URL会变成 `https://github.com/您的用户名/tvbox` 的格式。**后续所有GitHub操作都在这个您自己的仓库里进行。**
 
-----
+---
 
 ### 步骤 2: 从 Cloudflare 获取部署所需信息
 
@@ -62,7 +62,8 @@
 
 1.  点击页面顶部的 **[Settings]** 标签页。
 2.  在左侧菜单中，依次点击 **[Secrets and variables]** -> **[Actions]**。
-3.  在页面主区域，点击绿色的 **[New repository secret]** 按钮，我们来逐一添加三个密钥。
+3.  您会看到页面上有 **[Secrets]** 和 **[Variables]** 两个标签页。**请确保您停留在默认的 [Secrets] 标签页上。** 我们所有的令牌都必须作为Secret存储，以保证安全。
+4.  在 **"Repository secrets"** 这个标题的右侧，点击绿色的 **[New repository secret]** 按钮。现在，我们来逐一添加三个密钥。
 
     -   **密钥一：Cloudflare Account ID**
         -   **Name**: `CLOUDFLARE_ACCOUNT_ID` (请务必精确复制)
