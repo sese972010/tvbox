@@ -3,8 +3,7 @@ name: Deploy to Cloudflare
 on:
   push:
     branches:
-      - tvbox-aggregator-ui
-  workflow_dispatch:
+      - tvbox-aggregator-ui # 只监听这个特定的分支
 
 jobs:
   deploy-api:
@@ -16,16 +15,19 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+
       - name: Install dependencies
         run: npm install
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: wrangler deploy backend/src.js --name tvbox-source-aggregator
+          command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
           secrets: |
             GH_TOKEN
+
   deploy-ui:
     runs-on: ubuntu-latest
     name: Deploy UI to Pages
@@ -36,8 +38,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+
       - name: Install dependencies
         run: npm install
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
