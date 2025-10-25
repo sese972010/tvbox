@@ -3,8 +3,7 @@ name: Deploy to Cloudflare
 on:
   push:
     branches:
-      - tvbox-aggregator-ui
-  workflow_dispatch:
+      - tvbox-aggregator-ui # 只监听这个特定的分支
 
 jobs:
   deploy-api:
@@ -15,22 +14,19 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20' # <-- 【修正一】: Node.js 版本已升级
+          node-version: '18'
 
       - name: Install dependencies
         run: npm install
 
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: 'backend' # <-- 【修正二】: 指定工作目录为'backend'
-          command: deploy
-          secrets:
-            - GH_TOKEN
+          command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
+          secrets: |
+            GH_TOKEN
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -41,7 +37,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20' # <-- 【修正一】: Node.js 版本已升级
+          node-version: '18'
 
       - name: Install dependencies
         run: npm install

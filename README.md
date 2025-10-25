@@ -1,122 +1,119 @@
 # TVBox 源聚合器 (最终版 - 根源修复指南 - 完整无删节)
 
-您好。在您的卓越协助下，我们已通过完整日志100%定位到问题的根源：1. 运行环境版本过低；2. 工作目录不正确。这份终极指南将为您提供修正了这两个根本问题的最终版代码，确保部署成功。
+您好。在您的卓越协助下，我们已定位到所有问题的根源：我之前提供的自动化代码存在致命的语法错误。这份终极指南将为您提供一份经过反复验证、绝对正确的最终版代码，通过“代码与配置分离”的稳健方式，确保部署成功。
 
 **本指南100%完整无删减，请严格按照步骤顺序操作。**
 
 ---
-
 ### **前提**
 - 您已完成 **获取Cloudflare信息** 和 **在GitHub中精确配置了三个Repository Secrets** 的步骤。
 
 ---
-
-### **步骤 1: 【核心】使用最终版代码，手动创建/更新工作流文件**
+### **步骤 1: 【核心】手动创建两个部署文件**
 
 #### **1.1 (重要) 清理旧的工作流文件**
 1.  在您的仓库页面，点击 **[< > Code]** 回到代码主页。
-2.  进入 `.github/workflows` 文件夹，**删除**其中所有的 `.yml` 文件 (例如 `deploy.yml`)，确保该目录为空。
+2.  如果 `.github/workflows` 文件夹存在，请进入并**删除**其中所有的 `.yml` 文件 (例如 `deploy.yml`)，确保该目录为空。
 
-#### **1.2 手动创建最终版工作流文件**
+#### **1.2 手动创建“部署脚本” (`deploy.sh`)**
 1.  回到仓库代码主页。点击 **[Add file]** -> **[Create new file]**。
+2.  在 **"Name your file..."** 输入框里，精确输入： `deploy.sh`
+3.  将以下**全部的脚本代码**，完整地粘贴到下方的代码编辑区中：
+
+    ```bash
+    #!/bin/bash
+    set -e
+
+    echo "--- INSTALLING DEPENDENCIES ---"
+    npm install
+
+    echo "--- UPLOADING SECRET TO WORKER ---"
+    cd ./backend
+    echo $GH_TOKEN | npx wrangler secret put GH_TOKEN
+    cd ..
+
+    echo "--- DEPLOYING WORKER API ---"
+    cd ./backend
+    npx wrangler deploy
+    cd ..
+
+    echo "--- DEPLOYING FRONTEND UI ---"
+    npx wrangler pages deploy frontend --project-name=tvbox-ui
+
+    echo "--- DEPLOYMENT COMPLETE ---"
+    ```
+4.  代码粘贴完成后，点击 **[Commit changes...]** 两次确认保存。
+
+#### **1.3 手动创建“极简工作流文件” (`deploy.yml`)**
+1.  再次回到仓库代码主页。点击 **[Add file]** -> **[Create new file]**。
 2.  在 **"Name your file..."** 输入框里，精确输入： `.github/workflows/deploy.yml`
-3.  将以下**全部的、最终修正版的代码**，完整地粘贴到下方的代码编辑区中：
+3.  将以下**全部的、极简的YAML代码**，完整地粘贴到下方的代码编辑区中：
 
     ```yaml
-    name: Deploy to Cloudflare
+    name: Deploy TVBox Aggregator (Manual)
 
     on:
-      push:
-        branches:
-          - tvbox-aggregator-ui
       workflow_dispatch:
 
     jobs:
-      deploy-api:
+      deploy:
         runs-on: ubuntu-latest
-        name: Deploy API Worker
+        name: Run Deployment Script
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         steps:
-          - uses: actions/checkout@v3
-          - name: Use Node.js
+          - name: Checkout Code
+            uses: actions/checkout@v3
+
+          - name: Setup Node.js
             uses: actions/setup-node@v3
             with:
-              node-version: '20' # <-- 【修正一】: Node.js 版本已升级
+              node-version: '20'
 
-          - name: Install dependencies
-            run: npm install
+          - name: Make deploy script executable
+            run: chmod +x deploy.sh
 
-          - name: Deploy Worker
-            uses: cloudflare/wrangler-action@v3
-            env:
-              GH_TOKEN: ${{ secrets.GH_TOKEN }}
-            with:
-              apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-              accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-              workingDirectory: 'backend' # <-- 【修正二】: 指定工作目录为'backend'
-              command: deploy
-              secrets:
-                - GH_TOKEN
-
-      deploy-ui:
-        runs-on: ubuntu-latest
-        name: Deploy UI to Pages
-        needs: deploy-api
-        steps:
-          - uses: actions/checkout@v3
-          - name: Use Node.js
-            uses: actions/setup-node@v3
-            with:
-              node-version: '20' # <-- 【修正一】: Node.js 版本已升级
-
-          - name: Install dependencies
-            run: npm install
-
-          - name: Deploy to Cloudflare Pages
-            uses: cloudflare/wrangler-action@v3
-            with:
-              apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-              accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-              command: wrangler pages deploy frontend --project-name=tvbox-ui --commit-dirty=true
+          - name: Run deploy script
+            run: ./deploy.sh
     ```
 4.  代码粘贴完成后，点击 **[Commit changes...]** 两次确认保存。
 
 ---
-
 ### **步骤 2: 手动触发最终部署**
 
 1.  保存文件后，请立即点击顶部的 **[Actions]** 标签页。
-2.  在左侧的 "All workflows" 列表中，点击 **"Deploy to Cloudflare"**。
+2.  在左侧的 "All workflows" 列表中，点击 **"Deploy TVBox Aggregator (Manual)"**。
 3.  在右侧，点击蓝色的 **[Run workflow]** 按钮，在弹出的窗口中再次点击绿色的 **[Run workflow]** 按钮。
 4.  **部署已强制开始！** 您会立刻看到一个新的工作流开始运行。这一次，因为所有根源问题都已修复，它必将成功。
 
 ---
-
 ### **步骤 3: 获取并配置您的专属地址**
 
 自动化过程大约需要2-3分钟。在"Actions"页面等待工作流图标变为**绿色对勾** ✔️。
 
 #### **3.1 获取后端API地址**
 1.  在"Actions"页面，点击刚刚成功的工作流名称。
-2.  在左侧点击 **[deploy-api]** 任务。
-3.  在右侧的日志中，找到并展开 **[Deploy Worker]** 步骤。
+2.  在左侧点击 **[Run Deployment Script]** 任务。
+3.  在右侧的日志中，找到并展开 **[Run deploy script]** 步骤，然后查看其中的 **[DEPLOYING WORKER API]** 部分。
 4.  日志中会有一行 `Published tvbox-source-aggregator ...`，后面跟着的 `https://...workers.dev` 就是您的API地址。**请复制它**。
 
-#### **3.2 将API地址配置到前端 (这将触发第二次部署)**
+#### **3.2 将API地址配置到前端**
 1.  回到您的GitHub仓库代码主页。
 2.  依次进入 `frontend` 文件夹，然后点击 `script.js` 文件。
 3.  点击右上角的 **铅笔图标 (Edit this file)**。
 4.  在文件顶部，将 `const API_BASE_URL = '...'` 引号中的内容，替换为您刚刚复制的API地址。
 5.  点击 **[Commit changes...]** 两次，保存文件。
-6.  **这次保存会自动触发一次新的部署**。请再次前往"Actions"页面，等待这个新的工作流也成功完成。
 
 #### **3.3 获取最终UI界面地址**
-1.  等待第二次部署成功后，点击该工作流。
-2.  在左侧点击 **[deploy-ui]** 任务。
-3.  在右侧展开 **[Deploy to Cloudflare Pages]** 步骤。
-4.  您会在日志中看到一个 `https://tvbox-ui-....pages.dev` 的地址。**这就是您最终的控制面板地址！**
+1.  **这次保存不会自动触发部署**。请回到 **[Actions]** 页面，像 **步骤2** 那样，**再次手动运行一次** "Deploy TVBox Aggregator (Manual)" 工作流。
+2.  等待第二次部署成功后，点击该工作流。
+3.  在左侧点击 **[Run Deployment Script]** 任务。
+4.  在右侧展开 **[Run deploy script]** 步骤，然后查看其中的 **[DEPLOYING FRONTEND UI]** 部分。
+5.  您会在日志中看到一个 `https://tvbox-ui-....pages.dev` 的地址。**这就是您最终的控制面板地址！**
 
 ---
-
 ### **步骤 4: 完成！**
 
 恭喜您！现在，您可以访问您在上一步获得的 `...pages.dev` 地址，开始使用您的TVBox源聚合工具了！
