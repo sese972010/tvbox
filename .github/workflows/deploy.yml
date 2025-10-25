@@ -3,7 +3,7 @@ name: Deploy to Cloudflare
 on:
   push:
     branches:
-      - tvbox-aggregator-ui
+      - tvbox-aggregator-ui # 只监听这个特定的分支
 
 jobs:
   deploy-api:
