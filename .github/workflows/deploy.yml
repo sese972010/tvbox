@@ -1,0 +1,56 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - tvbox-aggregator-ui
+  workflow_dispatch:
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    name: Deploy API Worker
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        # 【核心修正】: 我们不再使用有问题的 `secrets:` 参数。
+        # 而是使用标准的 `env:` 命令，手动将密钥注入到环境中。
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: wrangler deploy backend/src/index.js --name tvbox-source-aggregator
+          # 同样，在这里我们明确告诉wrangler要上传哪个secret
+          secrets: |
+            GH_TOKEN
+
+  deploy-ui:
+    runs-on: ubuntu-latest
+    name: Deploy UI to Pages
+    needs: deploy-api
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: wrangler pages deploy frontend --project-name=tvbox-ui --commit-dirty=true
