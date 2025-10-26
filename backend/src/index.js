@@ -2,6 +2,7 @@
 // 1. 修正了 'Access-Control-Allow-Origin' 的拼写错误。
 // 2. 增强了路由逻辑，使其能够正确处理 '//start-task' 等异常路径。
 // 3. 恢复了所有功能，并保留了全局错误捕获。
+// 4. 新增了 /subscribe 路由以提供永久订阅链接。
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,8 +10,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// 使用一个简单的对象来模拟任务存储。在实际生产中，您可能需要更持久的存储。
 const tasks = {};
 
+// 辅助函数，用于生成标准的JSON响应
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -21,6 +24,7 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+// 核心聚合函数
 async function runAggregation(taskId, env) {
   const log = (message) => {
     if (tasks[taskId]) {
@@ -33,13 +37,12 @@ async function runAggregation(taskId, env) {
     log('任务开始: 聚合TVBox源');
 
     // 步骤 1: 使用 GitHub API 搜索源文件
-    log('步骤 1/4: 正在从 GitHub 搜索源文件...');
+    log('步骤 1/5: 正在从 GitHub 搜索源文件...');
     const ghToken = env.GH_TOKEN;
     if (!ghToken) {
       throw new Error("关键错误: 未在环境中找到 GH_TOKEN。请检查Cloudflare Worker的Secrets配置。");
     }
 
-    // 构建更精确的搜索查询：查找包含 "sites" 和 "spider" 关键词，扩展名为 .json 的文件
     const query = 'q=sites+spider+extension:json+tvbox';
     const searchUrl = `https://api.github.com/search/code?${query}`;
 
@@ -67,9 +70,8 @@ async function runAggregation(taskId, env) {
     }
     log(`搜索完成，发现 ${sourceUrls.length} 个潜在的源地址。`);
 
-
     // 步骤 2: 并行下载所有源文件的内容
-    log(`步骤 2/4: 开始并行下载 ${sourceUrls.length} 个源文件的内容...`);
+    log(`步骤 2/5: 开始并行下载 ${sourceUrls.length} 个源文件的内容...`);
     const downloadPromises = sourceUrls.map(url =>
       fetch(url)
         .then(res => {
@@ -81,13 +83,9 @@ async function runAggregation(taskId, env) {
     const downloadResults = await Promise.allSettled(downloadPromises);
 
     // 步骤 3: 验证内容并进行智能合并与去重
-    log('步骤 3/4: 正在验证内容并进行智能合并...');
+    log('步骤 3/5: 正在验证内容并进行智能合并...');
     const aggregatedJson = {
-      "sites": [],
-      "lives": [],
-      "rules": [],
-      "ads": [],
-      "spider": null,
+      "sites": [], "lives": [], "rules": [], "ads": [], "spider": null,
     };
     const siteKeys = new Set();
     const liveNames = new Set();
@@ -97,8 +95,6 @@ async function runAggregation(taskId, env) {
     for (const result of downloadResults) {
       if (result.status === 'fulfilled' && !result.value.error) {
         const sourceJson = result.value;
-
-        // 合并 & 去重 'sites'
         if (Array.isArray(sourceJson.sites)) {
           for (const site of sourceJson.sites) {
             if (site.key && !siteKeys.has(site.key)) {
@@ -107,8 +103,6 @@ async function runAggregation(taskId, env) {
             }
           }
         }
-
-        // 合并 & 去重 'lives'
         if (Array.isArray(sourceJson.lives)) {
           for (const live of sourceJson.lives) {
             if (live.name && !liveNames.has(live.name)) {
@@ -117,8 +111,6 @@ async function runAggregation(taskId, env) {
             }
           }
         }
-
-        // 合并 & 去重 'rules'
         if (Array.isArray(sourceJson.rules)) {
             for (const rule of sourceJson.rules) {
                 if (rule.name && !ruleNames.has(rule.name)) {
@@ -127,17 +119,12 @@ async function runAggregation(taskId, env) {
                 }
             }
         }
-
-        // 合并 'ads' (通常不需要去重)
         if (Array.isArray(sourceJson.ads)) {
             aggregatedJson.ads.push(...sourceJson.ads);
         }
-
-        // 保留第一个找到的 'spider' jar 地址
         if (sourceJson.spider && !aggregatedJson.spider) {
           aggregatedJson.spider = sourceJson.spider;
         }
-
         validSourceCount++;
       }
     }
@@ -149,12 +136,12 @@ async function runAggregation(taskId, env) {
     if (!env.TVBOX_KV) {
         throw new Error("关键错误: 未绑定KV存储。请在Cloudflare后台创建并绑定一个名为 'TVBOX_KV' 的KV命名空间。");
     }
-    await env.TVBOX_KV.put('latest_source', JSON.stringify(aggregatedJson, null, 2));
+    // 注意：我们将键名从 'latest_source' 改为 'latest_result' 以保持一致性
+    await env.TVBOX_KV.put('latest_result', JSON.stringify(aggregatedJson, null, 2));
     log('写入成功！订阅地址现在已更新。');
 
     log('步骤 5/5: 任务成功完成！');
     tasks[taskId].status = 'completed';
-    // 我们仍然在任务结果中返回聚合JSON，以便UI可以显示“下载”按钮作为备用
     tasks[taskId].result = aggregatedJson;
 
   } catch (error) {
@@ -168,16 +155,21 @@ async function runAggregation(taskId, env) {
 export default {
   async fetch(request, env, ctx) {
     try {
+      // 预检请求处理
       if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
       }
 
       const url = new URL(request.url);
+      // 规范化路径，移除多余的斜杠
       const pathname = url.pathname.replace(/\/+/g, '/');
+
+      // --- API 路由 ---
 
       if (pathname === '/start-task' && request.method === 'GET') {
         const taskId = `task-${Date.now()}`;
         tasks[taskId] = { id: taskId, status: 'pending', logs: '', result: null, error: null };
+        // 使用 waitUntil 确保聚合任务在响应返回后继续在后台运行
         ctx.waitUntil(runAggregation(taskId, env));
         return jsonResponse({ message: '任务已成功启动', taskId: taskId });
       }
@@ -196,17 +188,18 @@ export default {
         return jsonResponse({ result: tasks[taskId].result });
       }
 
-      // 【新增】永久订阅地址路由
+      // 【重要】永久订阅地址路由
       if (pathname === '/subscribe' && request.method === 'GET') {
         if (!env.TVBOX_KV) {
             return jsonResponse({ error: "关键错误: 未绑定KV存储。请联系管理员。" }, 500);
         }
-        const latestSource = await env.TVBOX_KV.get('latest_source');
-        if (latestSource === null) {
+        // 注意：我们将键名从 'latest_source' 改为 'latest_result' 以保持一致性
+        const latestResult = await env.TVBOX_KV.get('latest_result');
+        if (latestResult === null) {
             return jsonResponse({ message: "订阅源尚未生成，请先在控制面板运行一次聚合任务。" }, 404);
         }
-        // 直接返回存储的JSON字符串，并设置正确的Content-Type
-        return new Response(latestSource, {
+        // 直接返回存储的JSON字符串
+        return new Response(latestResult, {
             status: 200,
             headers: { 'Content-Type': 'application/json;charset=UTF-8', ...corsHeaders },
         });
