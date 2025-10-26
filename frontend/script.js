@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultLink = document.getElementById('result-link');
 
     // API的根URL，部署后需要替换成真实的Worker URL
-    const API_BASE_URL = 'https://tvbox-source-aggregator.pimm521-2af.workers.dev';
+    const API_BASE_URL = 'https://tvbox-source-aggregator.your-worker-name.workers.dev';
 
     let taskId = null;
     let pollInterval = null;
@@ -82,23 +82,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function getResult() {
-        if (!taskId) return;
+        // 【UI升级】任务完成后，不再获取临时结果，而是直接显示永久订阅地址
         try {
-            const response = await fetch(`${API_BASE_URL}/get-result?taskId=${taskId}`);
-            const data = await response.json();
+            // 确保 API_BASE_URL 末尾没有斜杠，以构建正确的订阅地址
+            const cleanApiBase = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+            const subscribeUrl = `${cleanApiBase}/subscribe`;
 
-            if (response.ok) {
-                const finalJsonString = JSON.stringify(data.result, null, 2);
-                // 为了能在UI上直接展示，我们创建一个可下载的链接
-                const blob = new Blob([finalJsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                resultLink.innerHTML = `<a href="${url}" download="tvbox_source.json">点击下载聚合后的订阅文件</a>`;
-                log('订阅文件已生成！');
-            } else {
-                throw new Error(data.error || '获取结果失败');
+            resultLink.innerHTML = `您的永久订阅地址已更新，请复制以下地址到TVBox中：<br><a href="${subscribeUrl}" target="_blank">${subscribeUrl}</a>`;
+            log('永久订阅地址已更新！');
+
+            // （可选）我们仍然可以获取一次结果，以便用户需要立即下载
+            const response = await fetch(`${API_BASE_URL}/get-result?taskId=${taskId}`);
+            if (!response.ok) {
+              log('（备用下载链接生成失败，但不影响永久地址的使用。）');
             }
         } catch (error) {
-            log(`获取最终结果时出错: ${error.message}`);
+            log(`在尝试显示永久订阅地址时发生错误: ${error.message}`);
         } finally {
             resetUI();
         }

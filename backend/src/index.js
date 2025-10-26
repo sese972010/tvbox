@@ -144,8 +144,17 @@ async function runAggregation(taskId, env) {
     log(`合并完成！成功处理了 ${validSourceCount} 个有效源。`);
     log(`最终聚合结果: ${aggregatedJson.sites.length} 个站点, ${aggregatedJson.lives.length} 个直播源, ${aggregatedJson.rules.length} 条规则。`);
 
-    log('步骤 4/4: 任务成功完成！');
+    // 步骤 4: 将聚合结果写入 KV 存储
+    log('步骤 4/5: 正在将最新结果写入永久存储...');
+    if (!env.TVBOX_KV) {
+        throw new Error("关键错误: 未绑定KV存储。请在Cloudflare后台创建并绑定一个名为 'TVBOX_KV' 的KV命名空间。");
+    }
+    await env.TVBOX_KV.put('latest_source', JSON.stringify(aggregatedJson, null, 2));
+    log('写入成功！订阅地址现在已更新。');
+
+    log('步骤 5/5: 任务成功完成！');
     tasks[taskId].status = 'completed';
+    // 我们仍然在任务结果中返回聚合JSON，以便UI可以显示“下载”按钮作为备用
     tasks[taskId].result = aggregatedJson;
 
   } catch (error) {
@@ -185,6 +194,22 @@ export default {
         if (!taskId || !tasks[taskId]) return jsonResponse({ error: '任务不存在或已过期' }, 404);
         if (tasks[taskId].status !== 'completed') return jsonResponse({ error: '任务尚未完成' }, 400);
         return jsonResponse({ result: tasks[taskId].result });
+      }
+
+      // 【新增】永久订阅地址路由
+      if (pathname === '/subscribe' && request.method === 'GET') {
+        if (!env.TVBOX_KV) {
+            return jsonResponse({ error: "关键错误: 未绑定KV存储。请联系管理员。" }, 500);
+        }
+        const latestSource = await env.TVBOX_KV.get('latest_source');
+        if (latestSource === null) {
+            return jsonResponse({ message: "订阅源尚未生成，请先在控制面板运行一次聚合任务。" }, 404);
+        }
+        // 直接返回存储的JSON字符串，并设置正确的Content-Type
+        return new Response(latestSource, {
+            status: 200,
+            headers: { 'Content-Type': 'application/json;charset=UTF-8', ...corsHeaders },
+        });
       }
 
       return jsonResponse({ error: `路径 '${pathname}' 未找到` }, 404);
