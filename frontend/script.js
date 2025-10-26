@@ -129,4 +129,4 @@ document.addEventListener('DOMContentLoaded', () => {
         startButton.textContent = '开始聚合';
         taskId = null;
     }
-});
+}); 
