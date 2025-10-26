@@ -1,9 +1,10 @@
-// 【最终功能版 - 经过部署问题修复】
-// 此版本恢复了所有聚合功能，并包含了之前添加的全局错误捕获机制。
-// 配合修复后的部署流程，这应该是最终的稳定版本。
+// 【最终功能版 - 用于手动部署】
+// 1. 修正了 'Access-Control-Allow-Origin' 的拼写错误。
+// 2. 增强了路由逻辑，使其能够正确处理 '//start-task' 等异常路径。
+// 3. 恢复了所有功能，并保留了全局错误捕获。
 
 const corsHeaders = {
-  'Access--Allow-Origin': '*',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
@@ -72,29 +73,30 @@ export default {
       }
 
       const url = new URL(request.url);
+      const pathname = url.pathname.replace(/\/+/g, '/');
 
-      if (url.pathname === '/start-task' && request.method === 'GET') {
+      if (pathname === '/start-task' && request.method === 'GET') {
         const taskId = `task-${Date.now()}`;
         tasks[taskId] = { id: taskId, status: 'pending', logs: '', result: null, error: null };
         ctx.waitUntil(runAggregation(taskId, env));
         return jsonResponse({ message: '任务已成功启动', taskId: taskId });
       }
 
-      if (url.pathname === '/task-status' && request.method === 'GET') {
+      if (pathname === '/task-status' && request.method === 'GET') {
         const taskId = url.searchParams.get('taskId');
         if (!taskId || !tasks[taskId]) return jsonResponse({ error: '任务不存在或已过期' }, 404);
         const { status, logs, error } = tasks[taskId];
         return jsonResponse({ status, logs, error });
       }
 
-      if (url.pathname === '/get-result' && request.method === 'GET') {
+      if (pathname === '/get-result' && request.method === 'GET') {
         const taskId = url.searchParams.get('taskId');
         if (!taskId || !tasks[taskId]) return jsonResponse({ error: '任务不存在或已过期' }, 404);
         if (tasks[taskId].status !== 'completed') return jsonResponse({ error: '任务尚未完成' }, 400);
         return jsonResponse({ result: tasks[taskId].result });
       }
 
-      return jsonResponse({ error: '路径未找到或请求方法不正确' }, 404);
+      return jsonResponse({ error: `路径 '${pathname}' 未找到` }, 404);
 
     } catch (e) {
       console.error("Worker发生致命错误:", e);
