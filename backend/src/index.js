@@ -1,57 +1,67 @@
-// 【核心修正】: 直接使用现代ESM `import` 语法，移除所有不兼容的 'createRequire' 补丁
+// 【最终版核心修正】: 采用更稳健的CORS处理模式，确保所有响应都包含正确的跨域头
 import { searchGithub } from './github_search.js';
 import { validateAndFilterSources } from './validator.js';
 import { mergeSources } from './merger.js';
 
-// 简单的内存任务存储
 const tasks = {};
 
+// 主fetch处理程序：捕获所有请求，处理CORS，并将请求分发给应用逻辑
 export default {
-    async fetch(request, env, ctx) { // 添加 ctx 参数
-        const url = new URL(request.url);
-        // 为所有响应添加CORS头
+    async fetch(request, env, ctx) {
         const corsHeaders = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type',
         };
 
+        // 首先处理CORS预检请求
         if (request.method === 'OPTIONS') {
             return new Response(null, { headers: corsHeaders });
         }
 
         let response;
         try {
-            if (url.pathname === '/start-task') {
-                response = await handleStartTask(request, env, ctx); // 传递 ctx
-            } else if (url.pathname === '/task-status') {
-                response = handleTaskStatus(request);
-            } else if (url.pathname === '/get-result') {
-                response = handleGetResult(request);
-            } else {
-                response = new Response(JSON.stringify({ error: 'API端点不存在' }), { status: 404 });
-            }
-        } catch (e) {
-            response = new Response(JSON.stringify({ error: e.message }), { status: 500 });
+            // 将请求传递给核心应用逻辑
+            response = await handleRequest(request, env, ctx);
+        } catch (err) {
+            console.error(err); // 在后台记录真实错误
+            response = new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
-        // 将CORS头附加到最终响应
-        const finalHeaders = new Headers(response.headers);
+        // 创建一个可变的新响应，并确保CORS头被应用到每一个从这里发出的响应上
+        const newResponse = new Response(response.body, response);
         Object.entries(corsHeaders).forEach(([key, value]) => {
-            finalHeaders.set(key, value);
+            newResponse.headers.set(key, value);
         });
-        if (!finalHeaders.has('Content-Type')) {
-            finalHeaders.set('Content-Type', 'application/json');
-        }
 
-        return new Response(response.body, {
-            status: response.status,
-            headers: finalHeaders,
-        });
+        return newResponse;
     },
 };
 
-async function handleStartTask(request, env, ctx) { // 接收 ctx
+// 核心应用逻辑：处理路由和具体任务
+async function handleRequest(request, env, ctx) {
+    const url = new URL(request.url);
+
+    switch (url.pathname) {
+        case '/start-task':
+            return await handleStartTask(request, env, ctx);
+        case '/task-status':
+            return handleTaskStatus(request);
+        case '/get-result':
+            return handleGetResult(request);
+        default:
+            return new Response(JSON.stringify({ error: 'API端点不存在' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+    }
+}
+
+
+async function handleStartTask(request, env, ctx) {
     const { keywords } = await request.json();
     const githubToken = env.GH_TOKEN || null;
 
@@ -63,34 +73,33 @@ async function handleStartTask(request, env, ctx) { // 接收 ctx
         error: null,
     };
 
-    // 异步执行，不阻塞响应
     ctx.waitUntil(runAggregation(taskId, keywords, githubToken));
 
-    return new Response(JSON.stringify({ success: true, taskId }), { status: 202 });
+    return new Response(JSON.stringify({ success: true, taskId }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+    });
 }
 
 function handleTaskStatus(request) {
     const taskId = new URL(request.url).searchParams.get('taskId');
     if (!taskId || !tasks[taskId]) {
-        return new Response(JSON.stringify({ error: '任务未找到' }), { status: 404 });
+        return new Response(JSON.stringify({ error: '任务未找到' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
-    return new Response(JSON.stringify(tasks[taskId]));
+    return new Response(JSON.stringify(tasks[taskId]), { headers: { 'Content-Type': 'application/json' } });
 }
 
 function handleGetResult(request) {
     const taskId = new URL(request.url).searchParams.get('taskId');
     if (!taskId || !tasks[taskId]) {
-        return new Response(JSON.stringify({ error: '任务未找到' }), { status: 404 });
+        return new Response(JSON.stringify({ error: '任务未找到' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
     if (tasks[taskId].status !== 'completed') {
-        return new Response(JSON.stringify({ error: '任务尚未完成' }), { status: 400 });
+        return new Response(JSON.stringify({ error: '任务尚未完成' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
     const result = tasks[taskId].result;
-
-    // 结果被获取后，从内存中清除以节省空间
     delete tasks[taskId];
-
-    return new Response(JSON.stringify({ result }));
+    return new Response(JSON.stringify({ result }), { headers: { 'Content-Type': 'application/json' } });
 }
 
 async function runAggregation(taskId, keywords, githubToken) {
@@ -101,16 +110,12 @@ async function runAggregation(taskId, keywords, githubToken) {
     try {
         log('开始在GitHub上搜索源...');
         const urls = await searchGithub(keywords, githubToken);
-        if (urls.length === 0) {
-            throw new Error('在GitHub上未找到任何相关的源文件。');
-        }
+        if (urls.length === 0) throw new Error('在GitHub上未找到任何相关的源文件。');
         log(`搜索完成，找到 ${urls.length} 个潜在的URL。`);
 
         log('开始验证和筛选源...');
         const validSources = await validateAndFilterSources(urls);
-        if (validSources.length === 0) {
-            throw new Error('所有找到的源都无法通过验证。');
-        }
+        if (validSources.length === 0) throw new Error('所有找到的源都无法通过验证。');
         log(`验证完成，有 ${validSources.length} 个有效源。`);
 
         log('开始合并源...');
