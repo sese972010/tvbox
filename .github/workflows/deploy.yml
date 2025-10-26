@@ -1,30 +1,27 @@
-name: Deploy Backend API (Ultimate Debug Mode)
+name: Deploy Backend API (Manual)
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy-api:
+  deploy:
     runs-on: ubuntu-latest
-    name: Deploy API and Capture Full Log
-    # 将 secrets 设置为环境变量，以便命令行工具可以访问
+    name: Deploy Worker API to Cloudflare
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-
-      - name: Install Dependencies (including Wrangler)
+      - name: Install Dependencies
         run: npm install
-
-      - name: Run Deployment with Full Logging
-        # 关键改动：使用最原始的 npx 命令，并添加 --log-level=debug 参数
-        # 这将强制 Wrangler 打印出最详细的日志信息。
-        run: npx wrangler deploy --config backend/wrangler.toml --log-level=debug
+      - name: Upload Secret & Deploy Worker
+        run: |
+          cd ./backend
+          echo $GH_TOKEN | npx wrangler secret put GH_TOKEN
+          npx wrangler deploy src/index.js
