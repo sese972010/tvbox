@@ -30,36 +30,127 @@ async function runAggregation(taskId, env) {
 
   try {
     tasks[taskId].status = 'running';
-    log('任务开始...');
+    log('任务开始: 聚合TVBox源');
 
-    log('步骤 1/4: 正在从GitHub搜索源文件 (模拟)...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const mockUrls = [
-      'https://raw.githubusercontent.com/FongMi/CatVodSpider/main/json/config.json',
-      'https://example.com/another-source.json'
-    ];
-    log(`搜索到 ${mockUrls.length} 个潜在的源地址。`);
+    // 步骤 1: 使用 GitHub API 搜索源文件
+    log('步骤 1/4: 正在从 GitHub 搜索源文件...');
+    const ghToken = env.GH_TOKEN;
+    if (!ghToken) {
+      throw new Error("关键错误: 未在环境中找到 GH_TOKEN。请检查Cloudflare Worker的Secrets配置。");
+    }
 
-    log('步骤 2/4: 正在验证源地址的有效性 (模拟)...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const validUrls = mockUrls.slice(0, 1);
-    log(`验证完成，找到 ${validUrls.length} 个有效源。`);
+    // 构建更精确的搜索查询：查找包含 "sites" 和 "spider" 关键词，扩展名为 .json 的文件
+    const query = 'q=sites+spider+extension:json+tvbox';
+    const searchUrl = `https://api.github.com/search/code?${query}`;
 
-    log('步骤 3/4: 正在下载并合并有效的源内容 (模拟)...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const mergedResult = {
-      "message": "这是一个模拟的合并结果",
-      "valid_sources": validUrls,
-      "total": validUrls.length
+    const searchResponse = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': `token ${ghToken}`,
+        'User-Agent': 'TVBox-Aggregator-Worker'
+      }
+    });
+
+    if (!searchResponse.ok) {
+      const errorText = await searchResponse.text();
+      throw new Error(`GitHub API 搜索失败: ${searchResponse.status} ${errorText}`);
+    }
+
+    const searchResult = await searchResponse.json();
+    const sourceUrls = searchResult.items.map(item => item.html_url.replace('https://github.com/', 'https://raw.githubusercontent.com/').replace('/blob/', '/'));
+
+    if (sourceUrls.length === 0) {
+      log("警告: GitHub API 未返回任何源文件。任务结束。");
+      tasks[taskId].status = 'completed';
+      tasks[taskId].result = { "message": "未找到任何源文件。" };
+      return;
+    }
+    log(`搜索完成，发现 ${sourceUrls.length} 个潜在的源地址。`);
+
+
+    // 步骤 2: 并行下载所有源文件的内容
+    log(`步骤 2/4: 开始并行下载 ${sourceUrls.length} 个源文件的内容...`);
+    const downloadPromises = sourceUrls.map(url =>
+      fetch(url)
+        .then(res => {
+          if (!res.ok) throw new Error(`下载 ${url} 失败`);
+          return res.json();
+        })
+        .catch(err => ({ error: err.message, url }))
+    );
+    const downloadResults = await Promise.allSettled(downloadPromises);
+
+    // 步骤 3: 验证内容并进行智能合并与去重
+    log('步骤 3/4: 正在验证内容并进行智能合并...');
+    const aggregatedJson = {
+      "sites": [],
+      "lives": [],
+      "rules": [],
+      "ads": [],
+      "spider": null,
     };
-    log('合并完成！');
+    const siteKeys = new Set();
+    const liveNames = new Set();
+    const ruleNames = new Set();
+
+    let validSourceCount = 0;
+    for (const result of downloadResults) {
+      if (result.status === 'fulfilled' && !result.value.error) {
+        const sourceJson = result.value;
+
+        // 合并 & 去重 'sites'
+        if (Array.isArray(sourceJson.sites)) {
+          for (const site of sourceJson.sites) {
+            if (site.key && !siteKeys.has(site.key)) {
+              aggregatedJson.sites.push(site);
+              siteKeys.add(site.key);
+            }
+          }
+        }
+
+        // 合并 & 去重 'lives'
+        if (Array.isArray(sourceJson.lives)) {
+          for (const live of sourceJson.lives) {
+            if (live.name && !liveNames.has(live.name)) {
+              aggregatedJson.lives.push(live);
+              liveNames.add(live.name);
+            }
+          }
+        }
+
+        // 合并 & 去重 'rules'
+        if (Array.isArray(sourceJson.rules)) {
+            for (const rule of sourceJson.rules) {
+                if (rule.name && !ruleNames.has(rule.name)) {
+                    aggregatedJson.rules.push(rule);
+                    ruleNames.add(rule.name);
+                }
+            }
+        }
+
+        // 合并 'ads' (通常不需要去重)
+        if (Array.isArray(sourceJson.ads)) {
+            aggregatedJson.ads.push(...sourceJson.ads);
+        }
+
+        // 保留第一个找到的 'spider' jar 地址
+        if (sourceJson.spider && !aggregatedJson.spider) {
+          aggregatedJson.spider = sourceJson.spider;
+        }
+
+        validSourceCount++;
+      }
+    }
+    log(`合并完成！成功处理了 ${validSourceCount} 个有效源。`);
+    log(`最终聚合结果: ${aggregatedJson.sites.length} 个站点, ${aggregatedJson.lives.length} 个直播源, ${aggregatedJson.rules.length} 条规则。`);
 
     log('步骤 4/4: 任务成功完成！');
     tasks[taskId].status = 'completed';
-    tasks[taskId].result = mergedResult;
+    tasks[taskId].result = aggregatedJson;
 
   } catch (error) {
     log(`任务执行时发生错误: ${error.message}`);
+    log(`堆栈跟踪: ${error.stack}`);
     tasks[taskId].status = 'failed';
     tasks[taskId].error = error.message;
   }
