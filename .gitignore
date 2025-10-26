@@ -1,8 +1,2 @@
-# Dependencies
+# Ignore node_modules directory
 /node_modules
-
-# Environment variables
-.env
-
-# Wrangler logs and state
-.wrangler/
