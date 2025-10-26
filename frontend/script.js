@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultLink = document.getElementById('result-link');
 
     // API的根URL，部署后需要替换成真实的Worker URL
-    const API_BASE_URL = 'https://tvbox-source-aggregator.your-worker-name.workers.dev';
+    const API_BASE_URL = 'https://tvbox-eun.pages.dev';
 
     let taskId = null;
     let pollInterval = null;
