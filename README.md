@@ -127,9 +127,9 @@ KV 是一个键值存储数据库，我们将用它来永久保存最新聚合�
 2.  **复制并粘贴**以下这行**最终的、简化的**部署命令，然后按`Enter`执行：
 
     ```bash
-    wrangler deploy --env .env
+    wrangler deploy
     ```
-    *   **说明**: 这个命令会自动读取 `wrangler.toml` 中的所有配置（包括Worker名称、入口文件、KV绑定），并使用 `.env` 文件中的 `GH_TOKEN`  secret，完成一次精准的部署。
+    *   **说明**: 这个命令会自动读取 `wrangler.toml` 中的所有配置（包括Worker名称、入口文件、KV绑定），并自动从 `.env` 文件中加载 `GH_TOKEN`，完成一次精准的部署。
 
 3.  等待命令执行完成。您应该会看到一条 `Successfully deployed` 的成功信息。
 
