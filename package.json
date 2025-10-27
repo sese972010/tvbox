@@ -4,8 +4,6 @@
   "description": "自用的点播和直播接口",
   "main": "index.js",
   "scripts": {
-    "deploy-ui": "dotenv -- wrangler pages deploy frontend --project-name=tvbox-ui",
-    "deploy-api": "dotenv -- wrangler deploy backend/src/index.js --name tvbox-source-aggregator",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
