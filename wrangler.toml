@@ -1,0 +1,20 @@
+# wrangler.toml - Configuration for the Cloudflare Worker
+
+# Top-level configuration
+name = "tvbox-source-aggregator-api" # The name of your worker
+main = "backend/src/index.js"       # The entry point for your worker
+compatibility_date = "2023-11-21"   # Use a recent compatibility date
+
+# KV Namespace binding. This is the crucial part.
+# It tells Cloudflare to make the "TVBOX_KV" namespace available to the worker script
+# under the variable name "TVBOX_KV".
+[[kv_namespaces]]
+binding = "TVBOX_KV"
+id = "put_your_kv_namespace_id_here" # This will be replaced by the user
+
+# Environment variables bindings for secrets.
+# While wrangler can pick up .env files, defining them here is more explicit.
+[vars]
+# GH_TOKEN will be read from the .env file by the deployment command,
+# but it's good practice to note it's a required variable.
+# We don't put the actual secret in this file.
