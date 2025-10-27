@@ -1,100 +1,63 @@
-# TVBox 源聚合器 - 权威手动部署指南 (静态文件版)
+# TVBox 源聚合器 - 最终版部署指南 (Pages Functions)
 
-本项目旨在创建一个全自动的TVBox源聚合服务。它能自动从GitHub搜索最新的TVBox源，进行测试、去重和合并，最终将聚合结果写入到一个**静态的 `subscribe.json` 文件**中，为您提供一个永久、稳定、可缓存的订阅链接。
+本项目旨在创建一个全自动的TVBox源聚合服务。它完全基于Cloudflare Pages及其内置的Functions功能，无需独立的Worker项目，部署和配置都极其简单。
 
-## 功能特性
+## 工作原理
 
-- **全自动聚合**: 自动发现并整合最新的TVBox源。
-- **静态订阅文件**: 聚合结果生成为 `subscribe.json` 静态文件，访问速度快，稳定性高，可被CDN缓存。
-- **Cloudflare 驱动**: 完全基于Cloudflare的免费服务（Workers, Pages），无服务器成本。
-- **手动部署**: 提供100%可靠的手动部署流程，让您完全掌控您的项目。
-- **定时自动更新**: 可通过Cloudflare Cron Triggers配置，实现订阅文件的定期自动更新。
+1.  **前端**: 一个位于 `frontend/` 目录的静态网页，为您提供一个控制面板。
+2.  **后端 (`_worker.js`)**: 一个位于 `frontend/` 目录下的 `_worker.js` 文件。Cloudflare会自动将此文件部署为一个与您的静态网站相关联的Worker。它负责：
+    *   提供API接口（例如 `/api/start-task`）来启动聚合任务。
+    *   执行聚合逻辑（搜索、下载、合并）。
+    *   将最终的聚合结果存入Cloudflare KV数据库。
+    *   拦截对 `/subscribe.json` 的访问请求，并从KV中返回最新的聚合结果。
 
-## 最终部署流程概览
+## 最终部署流程 (唯一正确的方法)
 
-本指南将引导您完成一个100%可靠的手动部署流程。整个过程分为四大步骤：
-
-1.  **【步骤一：Cloudflare 核心配置】**: 我们将配置好后端Worker与前端Pages项目的“集成”，这是新方案能工作的绝对前提。
-2.  **【步骤二：准备本地部署环境】**: 我们将准备好您的本地电脑，以便能够执行部署命令。
-3.  **【步骤三：部署后端 Worker】**: 您将通过Cloudflare网页界面，将我们最终的、功能完整的后端代码，手动粘贴并部署。这是最可靠的部署方式。
-4.  **【步骤四：部署前端并最终验证】**: 您将把前端项目关联到您的GitHub仓库，由Cloudflare Pages自动完成部署，并进行最终的端到端功能验证。
+请忘记之前所有的复杂步骤。让您的项目成功运行，只需要以下两个核心步骤。
 
 ---
 
-## 步骤一：Cloudflare 核心配置
+### 步骤一：将您的GitHub仓库连接到Cloudflare Pages
 
-### 1.1 部署前端占位符
-
-在配置集成之前，我们需要先让Cloudflare上存在一个Pages项目。
+如果您已经做过这一步，请确保配置无误；如果没做过，请按以下步骤操作：
 
 1.  登录到您的Cloudflare账户。
 2.  进入 **`Workers 和 Pages`**，选择 **`创建应用程序`** -> **`Pages`** -> **`连接到 Git`**。
 3.  选择您的GitHub账户，并选中 `tvbox-source-aggregator` 这个仓库。
-4.  在“**设置构建和部署**”页面，您**不需要修改任何设置**。直接滚动到底部，点击 **`保存并部署`**。
-5.  等待Cloudflare完成第一次部署。
+4.  在“**设置构建和部署**”页面：
+    *   **生产分支**: 确保选择了 `main`。
+    *   **框架预设**: Cloudflare应该会自动识别为 `None`。
+    *   **根目录**: **非常重要**，请确保这里填写的是 `frontend`。
+5.  点击 **`保存并部署`**。Cloudflare将开始部署您的前端网站和 `_worker.js` 后端。
 
-### 1.2 绑定Pages项目到Worker
+---
 
-这是授权后端修改前端文件的关键一步。
+### 步骤二：配置您的Pages项目
 
-1.  在左侧菜单栏中，再次点击 **`Workers 和 Pages`**。
-2.  在“概述”页面，找到并点击您的后端Worker：**`tvbox-source-aggregator-api`**。
-3.  进入Worker的管理页面后，点击顶部的 **`设置 (Settings)`** 标签页。
-4.  在“设置”页面，点击左侧的 **`变量 (Variables)`** 子菜单。
-5.  **向下滚动**，找到名为“**Pages 项目绑定 (Pages Directory Bindings)**”的部分。
-6.  点击该部分右侧的 **`添加绑定 (Add binding)`** 按钮。
-7.  在弹出的字段中：
-    *   **变量名称 (Variable Name)**: 请**精确地**输入 `PAGES_PROJECT`。
-    *   **Pages 项目 (Pages Project)**: 从下拉菜单中，选择您的前端Pages项目 **`tvbox-source-aggregator`**。
-8.  点击 **`保存并部署 (Save and Deploy)`** 按钮。
+在项目首次部署成功后，我们需要为后端功能提供必要的配置。
 
-### 1.3 配置环境变量
-
-后端代码需要知道您的Pages项目的名称。
-
-1.  停留在Worker的“**设置 (Settings)**”页面，点击左侧的 **`变量 (Variables)`** 子菜单。
-2.  在“**环境变量 (Environment Variables)**”部分，点击 **`添加变量 (Add variable)`**。
-3.  填写以下内容：
-    *   **变量名称 (Variable Name)**: `PAGES_PROJECT_NAME`
-    *   **值 (Value)**: `tvbox-source-aggregator` (或者您在Cloudflare Pages中为项目设置的名称)
-4.  再次点击 **`添加变量 (Add variable)`**，添加GitHub令牌：
+1.  在Cloudflare中，进入您刚刚部署的 **`tvbox-source-aggregator`** Pages项目。
+2.  点击顶部的 **`设置 (Settings)`** 标签页。
+3.  在左侧菜单中，点击 **`函数 (Functions)`**。
+4.  向下滚动到“**KV 命名空间绑定 (KV namespace bindings)**”部分，点击 **`添加绑定 (Add binding)`**。
+    *   **变量名称 (Variable Name)**: 请**精确地**输入 `TVBOX_KV`。
+    *   **KV 命名空间 (KV namespace)**: 从下拉菜单中，选择您之前创建的 `TVBOX_KV`。
+5.  点击 **`保存 (Save)`**。
+6.  现在，在左侧菜单中，点击 **`环境变量 (Environment variables)`**。
+7.  在“**生产环境 (Production)**”下，点击 **`添加变量 (Add variable)`**。
     *   **变量名称 (Variable Name)**: `GH_TOKEN`
     *   **值 (Value)**: (粘贴您自己的**GitHub个人访问令牌 (PAT)**)
     *   **重要**: 点击“**加密 (Encrypt)**”按钮，保护您的令牌。
-5.  点击 **`保存并部署 (Save and Deploy)`**。
+8.  点击 **`保存 (Save)`**。
 
 ---
 
-## 步骤二：部署后端 Worker
+### 最终验证
 
-我们将通过Cloudflare网页界面，手动粘贴最终的代码。
+1.  回到您Pages项目的概览页面，**触发一次新的部署**，以确保所有绑定和变量都已生效。
+2.  部署成功后，打开您的前端网站 `https://tvbox.pimm520.qzz.io`。
+3.  按 `Ctrl + Shift + R` (Windows) 或 `Cmd + Shift + R` (Mac) **强制刷新**。
+4.  点击“**开始聚合**”按钮，等待任务完成。
+5.  点击页面上生成的 `.../subscribe.json` 链接。
 
-1.  回到您的后端Worker **`tvbox-source-aggregator-api`** 的管理页面。
-2.  点击蓝色的 **`快速编辑 (Quick Edit)`** 按钮。
-3.  **将编辑器中的所有旧代码，完全删除**。
-4.  将您项目仓库中，`backend/src/index.js` 文件内的**所有代码**，完整地复制并粘贴到这个编辑器中。
-5.  点击编辑器右下角的 **`保存并部署 (Save and Deploy)`** 按钮，并在确认窗口中再次点击。
-
----
-
-## 步骤三：部署/更新前端
-
-由于我们向 `frontend/public` 目录中添加了 `subscribe.json` 文件，并修改了 `frontend/script.js`，我们需要将这些最新的更改部署到Cloudflare Pages。
-
-1.  请确保您本地的所有代码（特别是`frontend`目录下的文件）都已推送到您GitHub仓库的 `main` 分支。
-2.  Cloudflare Pages会自动检测到新的推送，并开始一次新的部署。您可以在Pages项目的仪表板上看到部署的状态。
-
----
-
-## 步骤四：最终验证
-
-1.  **运行聚合任务**:
-    *   等待前端新版本部署成功后，打开您的前端网站 `https://tvbox.pimm520.qzz.io`。
-    *   **按 `Ctrl + Shift + R` (Windows) 或 `Cmd + Shift + R` (Mac) 进行强制刷新**。
-    *   点击 **`开始聚合`** 按钮，并等待任务成功完成。您应该能看到“**静态文件写入成功！**”的日志。
-
-2.  **验证订阅链接**:
-    *   在任务成功后，**直接点击或在新标签页中打开**页面上显示的、指向 `.../subscribe.json` 的新链接。
-    *   **请注意**: 静态文件更新在全球CDN同步可能需要**1到2分钟**。如果您第一次打开看到的是旧的占位符内容，请稍等片刻，然后**再次强制刷新** `.json` 文件的页面。
-
-如果您成功看到了聚合后的JSON内容，那么恭喜您！您的项目已经以最稳妥的方式，成功部署并可以长期稳定使用了。
+这一次，您应该能看到一个功能完全正常的、能成功返回聚合JSON的订阅链接。

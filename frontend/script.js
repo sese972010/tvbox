@@ -1,122 +1,91 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const startButton = document.getElementById('startButton');
-    const keywordsInput = document.getElementById('keywords');
-    const logOutput = document.getElementById('log-output');
-    const resultLink = document.getElementById('result-link');
+// frontend/script.js
 
-    // API的根URL，部署后需要替换成真实的Worker URL
-    const API_BASE_URL = 'https://tvbox-api.pimm520.qzz.io';
+const API_BASE_URL = ''; // No longer needed, all calls are relative.
 
-    let taskId = null;
-    let pollInterval = null;
+const startTaskBtn = document.getElementById('start-task-btn');
+const logsContainer = document.getElementById('logs');
+const statusDiv = document.getElementById('status');
+const subscriptionUrlDiv = document.getElementById('subscription-url');
 
-    startButton.addEventListener('click', async () => {
-        const keywords = keywordsInput.value.trim();
+let taskId = null;
+let intervalId = null;
 
-        // UI状态重置
-        logOutput.textContent = '';
-        resultLink.textContent = '任务完成后将在此处显示...';
-        startButton.disabled = true;
-        startButton.textContent = '正在处理...';
+// Function to poll for task status
+async function checkTaskStatus() {
+    if (!taskId) return;
 
-        log('任务请求已发送，等待后端响应...');
-
-        try {
-            // 1. 调用/start-task启动任务
-            const response = await fetch(`${API_BASE_URL}/start-task`);
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || '启动任务失败');
-            }
-
-            const data = await response.json();
-            taskId = data.taskId;
-            log(`后端任务已启动，任务ID: ${taskId}`);
-
-            // 2. 开始轮询/task-status获取状态
-            pollInterval = setInterval(getTaskStatus, 2000); // 每2秒查询一次
-
-        } catch (error) {
-            log(`错误: ${error.message}`);
-            resetUI();
+    try {
+        // Corrected: Use a relative path for the API call.
+        const response = await fetch(`/api/task-status?taskId=${taskId}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    });
+        const data = await response.json();
 
-    async function getTaskStatus() {
-        if (!taskId) return;
+        // Update logs
+        logsContainer.textContent = data.logs || '等待日志...';
+        logsContainer.scrollTop = logsContainer.scrollHeight; // Auto-scroll
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/task-status?taskId=${taskId}`);
-            if (!response.ok) {
-                // 如果API返回错误（例如404），说明任务可能已完成并被清理
-                log('无法获取任务状态，可能任务已完成或已过期。');
-                stopPolling();
-                getResult(); // 尝试获取最终结果
-                return;
-            }
-
-            const data = await response.json();
-
-            // 更新日志显示
-            if (data.logs && logOutput.textContent !== data.logs) {
-                logOutput.textContent = data.logs;
-                logOutput.scrollTop = logOutput.scrollHeight;
-            }
-
-            if (data.status === 'completed') {
-                log('任务已完成！正在获取最终结果...');
-                stopPolling();
-                getResult();
-            } else if (data.status === 'failed') {
-                log(`任务失败: ${data.error}`);
-                stopPolling();
-                resetUI();
-            }
-
-        } catch (error) {
-            log(`轮询状态时出错: ${error.message}`);
-            stopPolling();
-            resetUI();
-        }
-    }
-
-    async function getResult() {
-        // 【最终方案】任务完成后，直接指向生成的静态 subscribe.json 文件
-        try {
-            // 获取当前页面的根URL，并拼接上静态文件的路径
-            const rootUrl = window.location.origin;
-            const subscribeUrl = `${rootUrl}/subscribe.json`;
-
-            resultLink.innerHTML = `您的静态订阅文件已更新，请复制以下地址到TVBox中：<br><a href="${subscribeUrl}" target="_blank">${subscribeUrl}</a>`;
-            log('静态订阅文件已更新！请注意：新文件可能需要1-2分钟才能在全球CDN生效。');
-
-        } catch (error) {
-            log(`在尝试显示静态订阅链接时发生错误: ${error.message}`);
-        } finally {
-            resetUI();
-        }
-    }
-
-    function log(message) {
-        const timestamp = new Date().toLocaleTimeString();
-        // 避免在已有日志上重复添加时间戳
-        if (!message.startsWith('[')) {
-            logOutput.textContent += `[${timestamp}] ${message}\n`;
+        // Update status and stop polling if finished
+        if (data.status === 'completed') {
+            statusDiv.textContent = '状态: 任务成功完成！';
+            statusDiv.className = 'status-completed';
+            subscriptionUrlDiv.innerHTML = `聚合订阅地址: <a href="/subscribe.json" target="_blank">${window.location.origin}/subscribe.json</a>`;
+            clearInterval(intervalId);
+            startTaskBtn.disabled = false;
+        } else if (data.status === 'failed') {
+            statusDiv.textContent = `状态: 任务失败 - ${data.error}`;
+            statusDiv.className = 'status-failed';
+            clearInterval(intervalId);
+            startTaskBtn.disabled = false;
         } else {
-            logOutput.textContent = message; // 直接替换为后端传来的完整日志
+            statusDiv.textContent = `状态: ${data.status}...`;
+            statusDiv.className = 'status-running';
         }
-        logOutput.scrollTop = logOutput.scrollHeight;
+    } catch (error) {
+        console.error('轮询状态失败:', error);
+        statusDiv.textContent = '状态: 轮询失败，请检查控制台。';
+        statusDiv.className = 'status-failed';
+        clearInterval(intervalId);
+        startTaskBtn.disabled = false;
     }
+}
 
-    function stopPolling() {
-        clearInterval(pollInterval);
-        pollInterval = null;
-    }
 
-    function resetUI() {
-        startButton.disabled = false;
-        startButton.textContent = '开始聚合';
-        taskId = null;
+// Event listener for the start button
+startTaskBtn.addEventListener('click', async () => {
+    // Reset UI
+    startTaskBtn.disabled = true;
+    logsContainer.textContent = '正在启动任务...';
+    statusDiv.textContent = '状态: pending';
+    statusDiv.className = 'status-pending';
+    subscriptionUrlDiv.innerHTML = '';
+    if (intervalId) clearInterval(intervalId);
+
+    try {
+        // Corrected: Use a relative path for the API call.
+        const response = await fetch('/api/start-task', { method: 'POST' });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+
+        taskId = data.taskId;
+        if (!taskId) {
+            throw new Error("未能从后端获取任务ID。");
+        }
+
+        statusDiv.textContent = '状态: 任务已启动，正在等待日志...';
+        statusDiv.className = 'status-running';
+
+        // Start polling every 3 seconds
+        intervalId = setInterval(checkTaskStatus, 3000);
+
+    } catch (error) {
+        console.error('启动任务失败:', error);
+        logsContainer.textContent = `启动任务时出错: ${error.message}`;
+        statusDiv.textContent = '状态: 启动失败';
+        statusDiv.className = 'status-failed';
+        startTaskBtn.disabled = false;
     }
 });
