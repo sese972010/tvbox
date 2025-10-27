@@ -33,19 +33,20 @@
 4.  在“**设置构建和部署**”页面，您**不需要修改任何设置**。直接滚动到底部，点击 **`保存并部署`**。
 5.  等待Cloudflare完成第一次部署。
 
-### 1.2 集成Pages项目到Worker
+### 1.2 绑定Pages项目到Worker
 
 这是授权后端修改前端文件的关键一步。
 
 1.  在左侧菜单栏中，再次点击 **`Workers 和 Pages`**。
 2.  在“概述”页面，找到并点击您的后端Worker：**`tvbox-source-aggregator-api`**。
 3.  进入Worker的管理页面后，点击顶部的 **`设置 (Settings)`** 标签页。
-4.  在“设置”页面，点击左侧的 **`集成 (Integrations)`** 子菜单。
-5.  找到“**Cloudflare Pages**”选项，点击它右侧的 **`添加集成 (Add Integration)`** 按钮。
-6.  在弹出的窗口中：
+4.  在“设置”页面，点击左侧的 **`变量 (Variables)`** 子菜单。
+5.  **向下滚动**，找到名为“**Pages 项目绑定 (Pages Directory Bindings)**”的部分。
+6.  点击该部分右侧的 **`添加绑定 (Add binding)`** 按钮。
+7.  在弹出的字段中：
     *   **变量名称 (Variable Name)**: 请**精确地**输入 `PAGES_PROJECT`。
-    *   **生产环境 (Production)**: 从下拉菜单中，选择您的前端Pages项目 **`tvbox-source-aggregator`**。
-7.  点击 **`保存 (Save)`**。
+    *   **Pages 项目 (Pages Project)**: 从下拉菜单中，选择您的前端Pages项目 **`tvbox-source-aggregator`**。
+8.  点击 **`保存并部署 (Save and Deploy)`** 按钮。
 
 ### 1.3 配置环境变量
 
