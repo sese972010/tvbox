@@ -82,22 +82,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function getResult() {
-        // 【UI升级】任务完成后，不再获取临时结果，而是直接显示永久订阅地址
+        // 【最终方案】任务完成后，直接指向生成的静态 subscribe.json 文件
         try {
-            // 确保 API_BASE_URL 末尾没有斜杠，以构建正确的订阅地址
-            const cleanApiBase = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-            const subscribeUrl = `${cleanApiBase}/subscribe`;
+            // 获取当前页面的根URL，并拼接上静态文件的路径
+            const rootUrl = window.location.origin;
+            const subscribeUrl = `${rootUrl}/subscribe.json`;
 
-            resultLink.innerHTML = `您的永久订阅地址已更新，请复制以下地址到TVBox中：<br><a href="${subscribeUrl}" target="_blank">${subscribeUrl}</a>`;
-            log('永久订阅地址已更新！');
+            resultLink.innerHTML = `您的静态订阅文件已更新，请复制以下地址到TVBox中：<br><a href="${subscribeUrl}" target="_blank">${subscribeUrl}</a>`;
+            log('静态订阅文件已更新！请注意：新文件可能需要1-2分钟才能在全球CDN生效。');
 
-            // （可选）我们仍然可以获取一次结果，以便用户需要立即下载
-            const response = await fetch(`${API_BASE_URL}/get-result?taskId=${taskId}`);
-            if (!response.ok) {
-              log('（备用下载链接生成失败，但不影响永久地址的使用。）');
-            }
         } catch (error) {
-            log(`在尝试显示永久订阅地址时发生错误: ${error.message}`);
+            log(`在尝试显示静态订阅链接时发生错误: ${error.message}`);
         } finally {
             resetUI();
         }

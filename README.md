@@ -1,144 +1,99 @@
-# TVBox 源聚合器 - 权威手动部署与配置指南
+# TVBox 源聚合器 - 权威手动部署指南 (静态文件版)
 
-本项目旨在创建一个全自动的TVBox源聚合服务。它能自动从GitHub搜索最新的TVBox源，进行测试、去重和合并，最终通过一个由Cloudflare Worker提供的、永久有效的订阅链接，为您的TVBox应用提供稳定、高质量的源。
+本项目旨在创建一个全自动的TVBox源聚合服务。它能自动从GitHub搜索最新的TVBox源，进行测试、去重和合并，最终将聚合结果写入到一个**静态的 `subscribe.json` 文件**中，为您提供一个永久、稳定、可缓存的订阅链接。
 
 ## 功能特性
 
-- **全自动聚合**: 无需人工干预，自动发现并整合最新的TVBox源。
-- **永久订阅链接**: 一次配置，长期有效。后端通过Cloudflare KV存储，确保链接内容永久更新。
-- **Cloudflare 驱动**: 完全基于Cloudflare的免费服务（Workers, Pages, KV），无服务器成本。
-- **自定义域名**: 支持绑定您自己的域名，打造个性化的订阅服务。
-- **定时自动更新**: 可通过Cloudflare Cron Triggers配置，实现订阅源的定期自动更新。
+- **全自动聚合**: 自动发现并整合最新的TVBox源。
+- **静态订阅文件**: 聚合结果生成为 `subscribe.json` 静态文件，访问速度快，稳定性高，可被CDN缓存。
+- **Cloudflare 驱动**: 完全基于Cloudflare的免费服务（Workers, Pages），无服务器成本。
+- **手动部署**: 提供100%可靠的手动部署流程，让您完全掌控您的项目。
+- **定时自动更新**: 可通过Cloudflare Cron Triggers配置，实现订阅文件的定期自动更新。
 
-## 手动部署流程概览
+## 最终部署流程概览
 
-由于自动化部署在不同环境下存在不确定性，本指南将引导您完成一个**100%可靠的手动部署流程**。整个过程分为五大步骤：
+本指南将引导您完成一个100%可靠的手动部署流程。整个过程分为四大步骤：
 
-1.  **【步骤一：Cloudflare 核心配置】**: 这是最关键的一步。我们将配置好项目所需的基础服务，包括创建用于存储聚合结果的KV命名空间。
-2.  **【步骤二：获取部署凭证】**: 我们将获取部署后端服务所需的“钥匙”，即您的Cloudflare账户ID和API令牌。
-3.  **【步骤三：配置项目环境变量】**: 我们会将获取到的凭证，以及您的GitHub访问令牌，配置到项目本地的 `.env` 文件中，为部署做准备。
-4.  **【步骤四：部署后端Worker】**: 您将在自己的电脑上，通过一条命令，将我们最终修复版的后端代码，精准地部署到Cloudflare。
-5.  **【步骤五：部署前端并最终验证】**: 您将把前端项目关联到您的GitHub仓库，由Cloudflare Pages自动完成部署，并进行最终的端到端功能验证。
-
-请严格按照以下步骤操作，这将确保您的项目能够成功、稳定地运行。
+1.  **【步骤一：Cloudflare 核心配置】**: 我们将配置好后端Worker与前端Pages项目的“集成”，这是新方案能工作的绝对前提。
+2.  **【步骤二：准备本地部署环境】**: 我们将准备好您的本地电脑，以便能够执行部署命令。
+3.  **【步骤三：部署后端 Worker】**: 您将通过Cloudflare网页界面，将我们最终的、功能完整的后端代码，手动粘贴并部署。这是最可靠的部署方式。
+4.  **【步骤四：部署前端并最终验证】**: 您将把前端项目关联到您的GitHub仓库，由Cloudflare Pages自动完成部署，并进行最终的端到端功能验证。
 
 ---
 
 ## 步骤一：Cloudflare 核心配置
 
-在这一步，我们将在Cloudflare上创建项目所需的基础资源。
+### 1.1 部署前端占位符
 
-### 1.1 创建 KV 命名空间
-
-KV 是一个键值存储数据库，我们将用它来永久保存最新聚合的TVBox源。
+在配置集成之前，我们需要先让Cloudflare上存在一个Pages项目。
 
 1.  登录到您的Cloudflare账户。
-2.  在左侧菜单栏中，找到并点击 **`Workers 和 Pages`**。
-3.  在打开的页面中，选择顶部的 **`KV`** 标签页。
-4.  点击蓝色的 **`创建命名空间`** 按钮。
-5.  在“**命名空间名称**”输入框中，**精确地**输入 `TVBOX_KV`。
-6.  点击 **`添加`**。您的KV数据库现已创建完毕。
+2.  进入 **`Workers 和 Pages`**，选择 **`创建应用程序`** -> **`Pages`** -> **`连接到 Git`**。
+3.  选择您的GitHub账户，并选中 `tvbox-source-aggregator` 这个仓库。
+4.  在“**设置构建和部署**”页面，您**不需要修改任何设置**。直接滚动到底部，点击 **`保存并部署`**。
+5.  等待Cloudflare完成第一次部署。
 
-### 1.2 检查 SSL/TLS 加密模式
+### 1.2 集成Pages项目到Worker
 
-这个设置对于确保您的自定义域名能正常工作至关重要。
+这是授权后端修改前端文件的关键一步。
 
-1.  返回到您的Cloudflare主页，并选择您的域名（例如 `qzz.io`）。
-2.  在左侧菜单栏中，找到并点击 **`SSL/TLS`** 图标。
-3.  确保您在顶部的“**概述 (Overview)**”子菜单中。
-4.  检查加密模式。**必须**确保它被设置为“**完全 (Full)**”或“**完全（严格）(Full (Strict))**”。
-5.  如果它当前是“灵活 (Flexible)”，请**务必**将它修改为“**完全 (Full)**”并保存。
+1.  在左侧菜单栏中，再次点击 **`Workers 和 Pages`**。
+2.  在“概述”页面，找到并点击您的后端Worker：**`tvbox-source-aggregator-api`**。
+3.  进入Worker的管理页面后，点击顶部的 **`设置 (Settings)`** 标签页。
+4.  在“设置”页面，点击左侧的 **`集成 (Integrations)`** 子菜单。
+5.  找到“**Cloudflare Pages**”选项，点击它右侧的 **`添加集成 (Add Integration)`** 按钮。
+6.  在弹出的窗口中：
+    *   **变量名称 (Variable Name)**: 请**精确地**输入 `PAGES_PROJECT`。
+    *   **生产环境 (Production)**: 从下拉菜单中，选择您的前端Pages项目 **`tvbox-source-aggregator`**。
+7.  点击 **`保存 (Save)`**。
 
----
+### 1.3 配置环境变量
 
-## 步骤二：获取部署凭证
+后端代码需要知道您的Pages项目的名称。
 
-这些凭证是您授权本地电脑部署代码到Cloudflare的“钥匙”，请妥善保管。
-
-### 2.1 获取 Cloudflare 账户 ID (Account ID)
-
-1.  停留在您的Cloudflare主页仪表板上。
-2.  在右侧边栏，找到并点击您的域名。
-3.  在新页面的右下角，您会看到一个“**API**”部分。
-4.  您的“**账户ID (Account ID)**”就在那里。它是一长串由数字和字母组成的字符串。
-5.  请**复制**这个ID，并把它粘贴到一个临时的记事本里。
-
-### 2.2 创建 Cloudflare API 令牌 (API Token)
-
-1.  在Cloudflare仪表板的右上角，点击您的**个人资料图标**，然后选择“**我的个人资料 (My Profile)**”。
-2.  在左侧菜单中，选择“**API令牌 (API Tokens)**”。
-3.  点击蓝色的“**创建令牌 (Create Token)**”按钮。
-4.  在“API令牌模板”页面，找到“**编辑Cloudflare Workers (Edit Cloudflare Workers)**”这个模板，并点击它旁边的“**使用模板 (Use template)**”按钮。
-5.  **您不需要修改任何权限设置**，模板默认的权限已经足够了。
-6.  直接滚动到页面底部，点击“**继续以显示摘要 (Continue to summary)**”。
-7.  在摘要页面，再次点击“**创建令牌 (Create Token)**”。
-8.  Cloudflare现在会生成您的API令牌。**这是您唯一一次能看到它的机会。**
-9.  请立刻**复制**这个令牌，并把它粘贴到您刚才的那个临时记事本里。
+1.  停留在Worker的“**设置 (Settings)**”页面，点击左侧的 **`变量 (Variables)`** 子菜单。
+2.  在“**环境变量 (Environment Variables)**”部分，点击 **`添加变量 (Add variable)`**。
+3.  填写以下内容：
+    *   **变量名称 (Variable Name)**: `PAGES_PROJECT_NAME`
+    *   **值 (Value)**: `tvbox-source-aggregator` (或者您在Cloudflare Pages中为项目设置的名称)
+4.  再次点击 **`添加变量 (Add variable)`**，添加GitHub令牌：
+    *   **变量名称 (Variable Name)**: `GH_TOKEN`
+    *   **值 (Value)**: (粘贴您自己的**GitHub个人访问令牌 (PAT)**)
+    *   **重要**: 点击“**加密 (Encrypt)**”按钮，保护您的令牌。
+5.  点击 **`保存并部署 (Save and Deploy)`**。
 
 ---
 
-## 步骤三：准备本地部署环境
+## 步骤二：部署后端 Worker
 
-在这一步，我们将完成在您自己电脑上进行部署的所有准备工作。
+我们将通过Cloudflare网页界面，手动粘贴最终的代码。
 
-### 3.1 安装 Node.js 和 Wrangler
-
-您需要在您的电脑上安装 `Node.js` 和 `wrangler` (Cloudflare的命令行工具)。
-
-1.  **安装 Node.js**: 请访问 [https://nodejs.org/](https://nodejs.org/) 下载并安装最新的LTS版本。`npm` 会随 `Node.js` 一同被安装。
-2.  **安装 Wrangler**: 打开您的**终端**或**命令行工具** (例如 `Terminal`, `PowerShell`, `cmd`)，运行以下命令来全局安装 `wrangler`:
-    ```bash
-    npm install -g wrangler
-    ```
-3.  **登录 Wrangler**: 运行以下命令，它会打开一个浏览器窗口，让您登录并授权 `wrangler` 访问您的Cloudflare账户:
-    ```bash
-    wrangler login
-    ```
-
-### 3.2 配置 GitHub 访问令牌
-
-后端服务需要一个GitHub令牌来搜索源文件。
-
-1.  在您的项目文件夹 `tvbox-source-aggregator` 的根目录，创建一个名为 `.env` 的新文件。
-2.  **复制**以下内容并粘贴到 `.env` 文件中。
-    ```
-    # Your GitHub Personal Access Token (PAT)
-    # See GitHub documentation on how to create a PAT with `public_repo` scope.
-    GH_TOKEN=
-    ```
-3.  将您自己的**GitHub个人访问令牌 (PAT)**，粘贴到 `GH_TOKEN=` 的后面。
+1.  回到您的后端Worker **`tvbox-source-aggregator-api`** 的管理页面。
+2.  点击蓝色的 **`快速编辑 (Quick Edit)`** 按钮。
+3.  **将编辑器中的所有旧代码，完全删除**。
+4.  将您项目仓库中，`backend/src/index.js` 文件内的**所有代码**，完整地复制并粘贴到这个编辑器中。
+5.  点击编辑器右下角的 **`保存并部署 (Save and Deploy)`** 按钮，并在确认窗口中再次点击。
 
 ---
 
-## 步骤四：部署后端 Worker
+## 步骤三：部署/更新前端
 
-我们将使用 `wrangler.toml` 配置文件来确保部署的准确性。
+由于我们向 `frontend/public` 目录中添加了 `subscribe.json` 文件，并修改了 `frontend/script.js`，我们需要将这些最新的更改部署到Cloudflare Pages。
 
-### 4.1 获取并配置 KV 命名空间 ID
-
-1.  回到您在 **步骤 1.1** 中创建的 `TVBOX_KV` 命名空间页面。
-2.  在它的下方，您会找到一串 **ID**。请**复制**这串ID。
-3.  打开项目根目录下的 `wrangler.toml` 文件。
-4.  将 `put_your_kv_namespace_id_here` 这段占位符，替换为您刚刚复制的 **KV 命名空间 ID**。保存文件。
-
-### 4.2 部署！
-
-1.  确保您的**终端**或**命令行工具**仍处于项目根目录 `tvbox-source-aggregator`。
-2.  **复制并粘贴**以下这行**最终的、简化的**部署命令，然后按`Enter`执行：
-
-    ```bash
-    wrangler deploy
-    ```
-    *   **说明**: 这个命令会自动读取 `wrangler.toml` 中的所有配置（包括Worker名称、入口文件、KV绑定），并自动从 `.env` 文件中加载 `GH_TOKEN`，完成一次精准的部署。
-
-3.  等待命令执行完成。您应该会看到一条 `Successfully deployed` 的成功信息。
+1.  请确保您本地的所有代码（特别是`frontend`目录下的文件）都已推送到您GitHub仓库的 `main` 分支。
+2.  Cloudflare Pages会自动检测到新的推送，并开始一次新的部署。您可以在Pages项目的仪表板上看到部署的状态。
 
 ---
 
-## 步骤五：部署前端并最终验证
+## 步骤四：最终验证
 
-(此部分内容保持不变，指南依然有效)
+1.  **运行聚合任务**:
+    *   等待前端新版本部署成功后，打开您的前端网站 `https://tvbox.pimm520.qzz.io`。
+    *   **按 `Ctrl + Shift + R` (Windows) 或 `Cmd + Shift + R` (Mac) 进行强制刷新**。
+    *   点击 **`开始聚合`** 按钮，并等待任务成功完成。您应该能看到“**静态文件写入成功！**”的日志。
 
-### 5.1 部署到 Cloudflare Pages
-...
-(后续内容省略，因为它们已经是正确的)
+2.  **验证订阅链接**:
+    *   在任务成功后，**直接点击或在新标签页中打开**页面上显示的、指向 `.../subscribe.json` 的新链接。
+    *   **请注意**: 静态文件更新在全球CDN同步可能需要**1到2分钟**。如果您第一次打开看到的是旧的占位符内容，请稍等片刻，然后**再次强制刷新** `.json` 文件的页面。
+
+如果您成功看到了聚合后的JSON内容，那么恭喜您！您的项目已经以最稳妥的方式，成功部署并可以长期稳定使用了。
