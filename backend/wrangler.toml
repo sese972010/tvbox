@@ -1,6 +1,0 @@
-# Cloudflare Worker 配置文件
-# 这个文件的存在确保了部署的准确性和一致性。
-
-name = "tvbox-source-aggregator" # 您的 Worker 项目名称
-main = "src/index.js"             # 入口文件路径
-compatibility_date = "2023-10-30" # 兼容性日期，确保 API 行为一致
