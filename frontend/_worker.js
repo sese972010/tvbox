@@ -1,7 +1,5 @@
 // --- FINAL Cloudflare Pages Function (_worker.js) ---
-
-// This single file acts as the backend for the Cloudflare Pages project.
-// It intercepts requests for API calls and for the dynamic subscription file.
+// Version 2.0.1 - With Enhanced Error Handling
 
 // In-memory store for task statuses. This is temporary and resets on worker deploy.
 const tasks = {};
@@ -109,58 +107,61 @@ async function runAggregation(taskId, env) {
  * @param {EventContext<Env, any, Record<string, unknown>>} context
  */
 export async function onRequest(context) {
-  const { request, env, next } = context;
-  const url = new URL(request.url);
+  // **NEW**: Add a global try-catch block to prevent 1019 errors.
+  try {
+    const { request, env, next } = context;
+    const url = new URL(request.url);
 
-  // --- API ROUTER ---
-  // We prefix our API routes with /api/ to avoid conflicts with static files.
+    // --- API ROUTER ---
+    if (url.pathname === '/api/start-task') {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        }});
+      }
 
-  // This handles the request to start a new aggregation task.
-  if (url.pathname === '/api/start-task') {
-    // Respond to OPTIONS preflight requests for CORS
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      }});
+      const taskId = `task-${Date.now()}`;
+      tasks[taskId] = { id: taskId, status: 'pending', logs: '', result: null, error: null };
+      context.waitUntil(runAggregation(taskId, env));
+      return jsonResponse({ message: '任务已启动', taskId: taskId });
     }
 
-    const taskId = `task-${Date.now()}`;
-    tasks[taskId] = { id: taskId, status: 'pending', logs: '', result: null, error: null };
-    // We don't block the request. The aggregation runs in the background.
-    context.waitUntil(runAggregation(taskId, env));
-    return jsonResponse({ message: '任务已启动', taskId: taskId });
+    if (url.pathname === '/api/task-status') {
+      const taskId = url.searchParams.get('taskId');
+      if (!taskId || !tasks[taskId]) {
+        return jsonResponse({ error: '任务ID不存在或已过期' }, 404);
+      }
+      const { status, logs, error } = tasks[taskId];
+      return jsonResponse({ status, logs, error });
+    }
+
+    // --- DYNAMIC CONTENT ROUTE ---
+    if (url.pathname === '/subscribe.json') {
+      if (!env.TVBOX_KV) {
+        return jsonResponse({ error: "后端配置错误: 未绑定KV存储。" }, 500);
+      }
+      const latestResult = await env.TVBOX_KV.get('latest_result');
+      if (latestResult === null) {
+        return jsonResponse({ "sites": [], "note": "No aggregated data found. Please run the aggregation task first." }, 404);
+      }
+
+      return new Response(latestResult, {
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+      });
+    }
+
+    // For any other request, pass it to the static asset server.
+    return next();
+
+  } catch (error) {
+    // If ANY unhandled error occurs, return a detailed error response
+    // instead of crashing with a 1019 error.
+    console.error('Unhandled error in onRequest:', error);
+    return new Response(
+      `An unexpected error occurred: ${error.message}\n\nStack Trace:\n${error.stack}`,
+      { status: 500 }
+    );
   }
-
-  // This handles requests for the status of a running task.
-  if (url.pathname === '/api/task-status') {
-    const taskId = url.searchParams.get('taskId');
-    if (!taskId || !tasks[taskId]) {
-      return jsonResponse({ error: '任务ID不存在或已过期' }, 404);
-    }
-    const { status, logs, error } = tasks[taskId];
-    return jsonResponse({ status, logs, error });
-  }
-
-  // --- DYNAMIC CONTENT ROUTE ---
-  // This intercepts requests for the subscription file and serves it from KV.
-  if (url.pathname === '/subscribe.json') {
-    if (!env.TVBOX_KV) {
-      return jsonResponse({ error: "后端配置错误: 未绑定KV存储。" }, 500);
-    }
-    const latestResult = await env.TVBOX_KV.get('latest_result');
-    if (latestResult === null) {
-      // If no result is in KV, return a placeholder.
-      return jsonResponse({ "sites": [], "note": "No aggregated data found. Please run the aggregation task first." }, 404);
-    }
-
-    // Serve the dynamic content from KV with the correct headers.
-    return new Response(latestResult, {
-      headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-    });
-  }
-
-  // For any other request, pass it through to the static assets handler to serve the HTML/CSS/JS files.
-  return next();
 }
