@@ -83,9 +83,9 @@ async function runAggregation(taskId, env) {
 }
 
 // This is the main fetch handler for all incoming requests.
-const fetchHandler = async (context) => {
+// By destructuring the context object in the function signature, we get direct access to request, env, and next.
+const fetchHandler = async ({ request, env, next }) => {
   try {
-    const { request, env, next } = context;
     const url = new URL(request.url);
 
     // --- NEW CANARY ROUTE ---
