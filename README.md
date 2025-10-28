@@ -1,63 +1,80 @@
-# TVBox 源聚合器 - 最终版部署指南 (Pages Functions)
+# TVBox 源聚合器 (Cloudflare Pages 终极版)
 
-本项目旨在创建一个全自动的TVBox源聚合服务。它完全基于Cloudflare Pages及其内置的Functions功能，无需独立的Worker项目，部署和配置都极其简单。
+这是一个全自动的 TVBox 源聚合项目。它被设计为部署在 Cloudflare Pages 上，利用 Pages Functions 处理后端逻辑，实现前端、后端一体化，极大地简化了部署和维护流程。
 
-## 工作原理
+## 功能
 
-1.  **前端**: 一个位于 `frontend/` 目录的静态网页，为您提供一个控制面板。
-2.  **后端 (`_worker.js`)**: 一个位于 `frontend/` 目录下的 `_worker.js` 文件。Cloudflare会自动将此文件部署为一个与您的静态网站相关联的Worker。它负责：
-    *   提供API接口（例如 `/api/start-task`）来启动聚合任务。
-    *   执行聚合逻辑（搜索、下载、合并）。
-    *   将最终的聚合结果存入Cloudflare KV数据库。
-    *   拦截对 `/subscribe.json` 的访问请求，并从KV中返回最新的聚合结果。
-
-## 最终部署流程 (唯一正确的方法)
-
-请忘记之前所有的复杂步骤。让您的项目成功运行，只需要以下两个核心步骤。
+-   **自动搜索**: 每天自动通过 GitHub API 搜索最新的 TVBox 源文件。
+-   **智能聚合**: 下载并合并所有搜索到的源，去除重复项，生成一个统一的订阅文件。
+-   **稳定订阅地址**: 提供一个永久不变的订阅地址，TVBox 端无需频繁更换。
+-   **简单部署**: 整个项目作为一个 Cloudflare Pages 应用一键部署，无需管理独立的服务器或 Worker。
+-   **手动/自动更新**: 提供一个简单的网页界面，可以手动触发更新，同时也支持设置定时任务，实现全自动无人值守更新。
 
 ---
 
-### 步骤一：将您的GitHub仓库连接到Cloudflare Pages
+## 最终部署指南：从零到全自动
 
-如果您已经做过这一步，请确保配置无误；如果没做过，请按以下步骤操作：
+请严格按照以下步骤操作，即可成功部署。
 
-1.  登录到您的Cloudflare账户。
-2.  进入 **`Workers 和 Pages`**，选择 **`创建应用程序`** -> **`Pages`** -> **`连接到 Git`**。
-3.  选择您的GitHub账户，并选中 `tvbox-source-aggregator` 这个仓库。
-4.  在“**设置构建和部署**”页面：
-    *   **生产分支**: 确保选择了 `main`。
-    *   **框架预设**: Cloudflare应该会自动识别为 `None`。
-    *   **根目录**: **非常重要**，请确保这里填写的是 `frontend`。
-5.  点击 **`保存并部署`**。Cloudflare将开始部署您的前端网站和 `_worker.js` 后端。
+### 第一步：准备工作 - 获取 GitHub 令牌
+
+此令牌用于授权应用通过 GitHub API 搜索源文件。
+
+1.  访问 [GitHub 个人访问令牌页面](https://github.com/settings/tokens/new)。
+2.  **Note (描述)**: 填写一个易于识别的名称，例如 `TVBox-Project-Key`。
+3.  **Expiration (有效期)**: 建议选择 `No expiration` (无过期)。
+4.  **Scopes (权限)**: **只勾选** `public_repo` 这一个权限。
+5.  点击 **Generate token**。
+6.  **【重要】** 复制生成的令牌 (以 `ghp_` 开头) 并**安全保存**。此令牌只会显示一次。
+
+### 第二步：核心操作 - 创建并配置 Cloudflare Pages 项目
+
+这是唯一需要在 Cloudflare 上操作的步骤。
+
+1.  **开始创建**:
+    *   登录 Cloudflare -> 左侧菜单选择 **Workers & Pages**。
+    *   点击 **Create application** -> **Pages** -> **Connect to Git**。
+
+2.  **连接 GitHub 仓库**:
+    *   选择您存放此项目的 GitHub 仓库，点击 **Begin setup**。
+
+3.  **配置构建与部署 (请严格按照以下填写)**:
+    *   **Project name**: 自定义，例如 `my-tvbox-aggregator`。
+    *   **Production branch**: 选择 `main`。
+    *   **Build settings**:
+        *   **Framework preset**: 选择 `None`。
+        *   **Build command**: **留空**。
+        *   **Build output directory**: 填写 `frontend`。
+
+4.  **添加环境变量**:
+    *   在同一页面向下滚动，展开 **Environment variables (advanced)**。
+    *   点击 **Add variable**。
+        *   **Variable name**: `GH_TOKEN`
+        *   **Value**: 粘贴您在【第一步】中保存的 GitHub 令牌。
+        *   **【重要】** 点击 **Encrypt** 按钮加密。
+
+5.  **首次部署**:
+    *   点击 **Save and Deploy**，等待部署完成。
+
+6.  **关联 KV 存储** (用于存放聚合结果):
+    *   部署成功后，进入项目主页 -> **Settings** -> **Functions**。
+    *   向下滚动到 **KV namespace bindings** -> 点击 **Add binding**。
+        *   **Variable name**: `TVBox_KV`
+        *   **KV namespace**: 点击下拉框 -> **Create a namespace** -> 输入名称 (例如 `TVBox_KV`) -> **Create**。
+    *   **【重要】** 为了让绑定生效，需要**重新部署**。回到项目主页，在最新的部署记录上点击 **Retry deployment**。
+
+### 第三步：运行与使用
+
+1.  **访问应用**: 在 Pages 项目主页，点击您的项目 URL (例如 `https://my-tvbox-aggregator.pages.dev`)。
+2.  **首次运行**: 在打开的页面上，点击 **开始聚合任务**。等待日志滚动，直至状态显示“任务成功完成！”。
+3.  **获取订阅地址**: 任务成功后，您长期有效的订阅地址就是：
+    *   `https://<您的项目URL>/subscribe.json`
+
+### 第四步：(可选) 绑定个人域名
+
+1.  在 Pages 项目设置中，进入 **Custom domains** 选项卡。
+2.  按照 Cloudflare 的指引，添加您自己的域名，并配置 DNS 解析。
+3.  成功后，您的订阅地址将变为 `https://<您的自定义域名>/subscribe.json`。
 
 ---
-
-### 步骤二：配置您的Pages项目
-
-在项目首次部署成功后，我们需要为后端功能提供必要的配置。
-
-1.  在Cloudflare中，进入您刚刚部署的 **`tvbox-source-aggregator`** Pages项目。
-2.  点击顶部的 **`设置 (Settings)`** 标签页。
-3.  在左侧菜单中，点击 **`函数 (Functions)`**。
-4.  向下滚动到“**KV 命名空间绑定 (KV namespace bindings)**”部分，点击 **`添加绑定 (Add binding)`**。
-    *   **变量名称 (Variable Name)**: 请**精确地**输入 `TVBOX_KV`。
-    *   **KV 命名空间 (KV namespace)**: 从下拉菜单中，选择您之前创建的 `TVBOX_KV`。
-5.  点击 **`保存 (Save)`**。
-6.  现在，在左侧菜单中，点击 **`环境变量 (Environment variables)`**。
-7.  在“**生产环境 (Production)**”下，点击 **`添加变量 (Add variable)`**。
-    *   **变量名称 (Variable Name)**: `GH_TOKEN`
-    *   **值 (Value)**: (粘贴您自己的**GitHub个人访问令牌 (PAT)**)
-    *   **重要**: 点击“**加密 (Encrypt)**”按钮，保护您的令牌。
-8.  点击 **`保存 (Save)`**。
-
----
-
-### 最终验证
-
-1.  回到您Pages项目的概览页面，**触发一次新的部署**，以确保所有绑定和变量都已生效。
-2.  部署成功后，打开您的前端网站 `https://tvbox.pimm520.qzz.io`。
-3.  按 `Ctrl + Shift + R` (Windows) 或 `Cmd + Shift + R` (Mac) **强制刷新**。
-4.  点击“**开始聚合**”按钮，等待任务完成。
-5.  点击页面上生成的 `.../subscribe.json` 链接。
-
-这一次，您应该能看到一个功能完全正常的、能成功返回聚合JSON的订阅链接。
+*此 README 是由 Jules (AI 软件工程师) 在最终确定项目架构后编写的。*

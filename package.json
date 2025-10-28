@@ -1,25 +1,10 @@
 {
-  "name": "app",
-  "version": "1.0.0",
-  "description": "自用的点播和直播接口",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/sese972010/tvbox.git"
-  },
-  "keywords": [],
+  "name": "tvbox-source-aggregator",
+  "version": "2.0.0",
+  "description": "A Cloudflare Pages application to aggregate TVBox sources from GitHub.",
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/sese972010/tvbox/issues"
-  },
-  "homepage": "https://github.com/sese972010/tvbox#readme",
-  "devDependencies": {
-    "dotenv-cli": "^10.0.0",
-    "wrangler": "^4.45.0"
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
   }
 }

@@ -1,2 +1,10 @@
-# Ignore node_modules directory
+# Node.js dependencies
 /node_modules
+
+# Cloudflare Wrangler local development files
+.wrangler/
+.mf/
+
+# Operating System files
+.DS_Store
+Thumbs.db
